@@ -1,0 +1,78 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+
+# Web related
+lib/generated_plugin_registrant.dart
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ── Secrets & credentials (MUST NOT be committed) ─────────────
+.env
+.env.*
+!.env.example
+
+# Android signing keys & account info
+android/key/
+*.jks
+*.keystore
+account.txt
+
+# Firebase / Google service files (contain API keys)
+google-services.json
+GoogleService-Info.plist
+
+# iOS signing
+*.p12
+*.mobileprovision
+
+# Beanstalk — secrets (NEVER commit these)
+.env
+.env.*
+!.env.example
+android/key/
+*.jks
+*.keystore
+account.txt
+google-services.json
+GoogleService-Info.plist
+*.p12
+*.mobileprovision

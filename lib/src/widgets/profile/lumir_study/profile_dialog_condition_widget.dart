@@ -1,0 +1,51 @@
+import 'package:flutter/material.dart';
+import 'package:beanstalk_mobile/src/ui/app_skin.dart';
+
+void showProfileConditionDialog(BuildContext context, String title, double height, Widget content, VoidCallback callback) {
+  Dialog fancyDialog = Dialog(
+    elevation: 5.0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(30.0),
+    ),
+    child: Container(
+      height: 150.0 + height,
+      width: 300.0,
+      child: Stack(
+        children: <Widget>[
+          //TOP
+          Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              height: 60.0,
+              alignment: Alignment.bottomCenter,
+              decoration: BoxDecoration(
+                gradient: AppColor.secondaryGradient,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(30),
+                  topRight: Radius.circular(30),
+                ),
+              ),
+              child: Align(
+                alignment: Alignment.center,
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppFontSizes.subTitleSize + 5.0,
+                  ),
+                  textScaler: TextScaler.linear(AppFontScales.adaptiveScale),
+                ),
+              ),
+            ),
+          ),
+          //CENTER
+          Align(
+            alignment: Alignment.center,
+            child: content,
+          ),
+        ],
+      ),
+    ),
+  );
+  showDialog(context: context, builder: (BuildContext context) => fancyDialog);
+}
