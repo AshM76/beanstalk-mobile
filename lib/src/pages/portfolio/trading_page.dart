@@ -337,18 +337,9 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
               child: Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                // TODO: Implement actual API call to /api/portfolio/:userId/trade
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('${action.toUpperCase()} order submitted successfully!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-                Future.delayed(Duration(seconds: 2), () {
-                  Navigator.pop(context);
-                });
+                await _submitTrade(context, action, symbol, quantity);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: action == 'buy' ? Colors.green : Colors.red,
@@ -359,5 +350,63 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
         );
       },
     );
+  }
+
+  Future<void> _submitTrade(BuildContext context, String action, String symbol, double quantity) async {
+    try {
+      final prefs = UserPreference();
+      await prefs.initPrefs();
+      final token = prefs.token;
+      final userId = prefs.id;
+
+      if (token.isEmpty || userId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Authentication required. Please log in again.')),
+        );
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('https://staging.beanstalk.app/api/portfolio/$userId/trade'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'action': action,
+          'symbol': symbol,
+          'quantity': quantity,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${action.toUpperCase()} order executed successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Optionally refresh portfolio or navigate
+        Future.delayed(Duration(seconds: 2), () {
+          Navigator.pop(context);
+        });
+      } else {
+        final error = json.decode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Trade failed: ${error['error'] ?? 'Unknown error'}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Network error. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
