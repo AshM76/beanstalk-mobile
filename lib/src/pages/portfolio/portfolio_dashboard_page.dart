@@ -10,7 +10,7 @@ class _PortfolioDashboardPageState extends State<PortfolioDashboardPage> {
   bool _isLoading = true;
 
   // Portfolio data
-  double _totalBalance = 100000.0;
+  double _totalBalance = 10000.0;
   double _currentValue = 108500.0;
   double _totalReturn = 8500.0;
   double _returnPercent = 8.5;
