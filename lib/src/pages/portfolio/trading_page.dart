@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:beanstalk_mobile/src/ui/app_skin.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:beanstalk_mobile/src/preferences/user_preference.dart';
 
 class TradingPage extends StatefulWidget {
   @override
@@ -11,15 +14,19 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
 
   final TextEditingController _symbolController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController();
 
   String _selectedAction = 'buy';
   double _totalCost = 0.0;
+  double _currentPrice = 0.0;
+  bool _isLoadingPrice = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _symbolController.addListener(() {
+      _fetchCurrentPrice(_symbolController.text.trim());
+    });
   }
 
   @override
@@ -27,16 +34,57 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
     _tabController.dispose();
     _symbolController.dispose();
     _quantityController.dispose();
-    _priceController.dispose();
     super.dispose();
   }
 
   void _calculateTotal() {
     final quantity = double.tryParse(_quantityController.text) ?? 0;
-    final price = double.tryParse(_priceController.text) ?? 0;
     setState(() {
-      _totalCost = quantity * price;
+      _totalCost = quantity * _currentPrice;
     });
+  }
+
+  Future<void> _fetchCurrentPrice(String symbol) async {
+    if (symbol.isEmpty) return;
+
+    setState(() {
+      _isLoadingPrice = true;
+    });
+
+    try {
+      final prefs = UserPreference();
+      await prefs.initPrefs();
+      final token = prefs.token;
+
+      final response = await http.get(
+        Uri.parse('https://staging.beanstalk.app/api/market/price/$symbol'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _currentPrice = data['price'] ?? 0.0;
+          _calculateTotal();
+        });
+      } else {
+        // Handle error
+        setState(() {
+          _currentPrice = 0.0;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _currentPrice = 0.0;
+      });
+    } finally {
+      setState(() {
+        _isLoadingPrice = false;
+      });
+    }
   }
 
   @override
@@ -82,9 +130,9 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
           SizedBox(height: 24),
           _buildInputField('Symbol', 'e.g., AAPL', _symbolController),
           SizedBox(height: 16),
-          _buildInputField('Quantity', 'Number of shares', _quantityController, isNumeric: true),
+          _buildCurrentPriceDisplay(),
           SizedBox(height: 16),
-          _buildInputField('Price per Share', '\$', _priceController, isNumeric: true),
+          _buildInputField('Quantity', 'Number of shares', _quantityController, isNumeric: true),
           SizedBox(height: 24),
           Container(
             padding: EdgeInsets.all(16),
@@ -198,14 +246,63 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
     );
   }
 
+  Widget _buildCurrentPriceDisplay() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Current Price',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: AppColor.fourthColor,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Text(
+                _isLoadingPrice ? 'Loading...' : '\$${_currentPrice.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: _isLoadingPrice ? Colors.grey : AppColor.fourthColor,
+                ),
+              ),
+              if (_isLoadingPrice)
+                SizedBox(width: 8),
+              if (_isLoadingPrice)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   void _executeTrade(BuildContext context, String action) {
     final symbol = _symbolController.text.trim();
     final quantity = double.tryParse(_quantityController.text);
-    final price = double.tryParse(_priceController.text);
 
-    if (symbol.isEmpty || quantity == null || price == null) {
+    if (symbol.isEmpty || quantity == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    if (_currentPrice == 0.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to get current price. Please check symbol')),
       );
       return;
     }
@@ -222,7 +319,7 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
             children: [
               Text('Symbol: $symbol'),
               Text('Quantity: ${quantity.toStringAsFixed(1)} shares'),
-              Text('Price: \$${price.toStringAsFixed(2)}'),
+              Text('Price: \$${_currentPrice.toStringAsFixed(2)}'),
               SizedBox(height: 12),
               Text(
                 'Total: \$${_totalCost.toStringAsFixed(2)}',
@@ -242,6 +339,7 @@ class _TradingPageState extends State<TradingPage> with SingleTickerProviderStat
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
+                // TODO: Implement actual API call to /api/portfolio/:userId/trade
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('${action.toUpperCase()} order submitted successfully!'),
