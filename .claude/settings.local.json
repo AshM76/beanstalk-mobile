@@ -3,7 +3,8 @@
     "allow": [
       "Bash(flutter analyze:*)",
       "Bash(flutter build:*)",
-      "Bash(ls -la /Users/mehtafam/Documents/Beanstalk/lib/services/*/)"
+      "Bash(ls -la /Users/mehtafam/Documents/Beanstalk/lib/services/*/)",
+      "Bash(gh repo:*)"
     ]
   }
 }
