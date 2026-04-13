@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beanstalk — Animated Logo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #F4FAF6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Georgia', serif;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: relative;
+    width: 480px;
+    height: 620px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  svg#plant {
+    position: absolute;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 340px;
+    height: 500px;
+    overflow: visible;
+  }
+
+  /* ─── Wordmark ─────────────────────────────────────── */
+  .wordmark {
+    position: absolute;
+    bottom: 18px;
+    left: 0; right: 0;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .wordmark.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .wordmark h1 {
+    font-family: 'Arial Black', 'Arial', sans-serif;
+    font-size: 34px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    color: #0F4C2A;
+    text-transform: uppercase;
+  }
+  .wordmark p {
+    font-family: 'Arial', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: #5A8A6E;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  /* ─── SVG element base states ──────────────────────── */
+  .soil-shadow {
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  .seed {
+    opacity: 0;
+    transform-origin: 170px 478px;
+    transition: opacity 0.4s ease, transform 0.5s ease;
+  }
+  .stalk-path {
+    stroke-dasharray: 600;
+    stroke-dashoffset: 600;
+    transition: stroke-dashoffset 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .stalk-highlight {
+    stroke-dasharray: 600;
+    stroke-dashoffset: 600;
+    transition: stroke-dashoffset 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.08s;
+  }
+  .leaf-group {
+    opacity: 0;
+    transform-origin: var(--ox) var(--oy);
+    transform: scale(0.05) rotate(var(--start-rot, 0deg));
+    transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .leaf-group.visible {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  .coin-group {
+    opacity: 0;
+    transform-origin: var(--cx) var(--cy);
+    transform: scale(0.1);
+    transition: opacity 0.4s ease 0.15s, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s;
+  }
+  .coin-group.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* ─── Gentle sway after growth ──────────────────────── */
+  @keyframes sway {
+    0%   { transform: rotate(0deg); }
+    25%  { transform: rotate(1.2deg); }
+    75%  { transform: rotate(-1.2deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @keyframes float-coin {
+    0%   { transform: translateY(0px); }
+    50%  { transform: translateY(-3px); }
+    100% { transform: translateY(0px); }
+  }
+  @keyframes shimmer-leaf {
+    0%   { opacity: 0.12; }
+    50%  { opacity: 0.28; }
+    100% { opacity: 0.12; }
+  }
+  @keyframes pulse-glow {
+    0%   { r: 0; opacity: 0.6; }
+    100% { r: 28px; opacity: 0; }
+  }
+  .swaying {
+    animation: sway 4s ease-in-out infinite;
+    transform-origin: 170px 478px;
+  }
+  .floating-coin {
+    animation: float-coin 2.8s ease-in-out infinite;
+  }
+  .leaf-shimmer {
+    animation: shimmer-leaf 3s ease-in-out infinite;
+  }
+
+  /* ─── Particle seeds ──────────────────────────────── */
+  .sparkle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #F5C842;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  /* ─── Replay button ─────────────────────────────── */
+  .replay-btn {
+    position: absolute;
+    bottom: -42px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: none;
+    border: 1.5px solid #1B8C4E;
+    color: #1B8C4E;
+    padding: 6px 20px;
+    border-radius: 20px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.5s ease, background 0.2s ease, color 0.2s ease;
+  }
+  .replay-btn:hover {
+    background: #1B8C4E;
+    color: white;
+  }
+  .replay-btn.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+
+  <!-- ─── SVG Plant ───────────────────────────────── -->
+  <svg id="plant" viewBox="0 0 340 500" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Stalk gradient -->
+      <linearGradient id="stalkGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stop-color="#0F5C2A"/>
+        <stop offset="40%"  stop-color="#1B8C4E"/>
+        <stop offset="70%"  stop-color="#26A660"/>
+        <stop offset="100%" stop-color="#0F5C2A"/>
+      </linearGradient>
+
+      <!-- Leaf gradient (left-side leaves) -->
+      <linearGradient id="leafGradL" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%"   stop-color="#2ECC71"/>
+        <stop offset="55%"  stop-color="#1B8C4E"/>
+        <stop offset="100%" stop-color="#0A4A25"/>
+      </linearGradient>
+      <!-- Leaf gradient (right-side leaves) -->
+      <linearGradient id="leafGradR" x1="100%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%"   stop-color="#2ECC71"/>
+        <stop offset="55%"  stop-color="#1B8C4E"/>
+        <stop offset="100%" stop-color="#0A4A25"/>
+      </linearGradient>
+
+      <!-- Coin gradient -->
+      <radialGradient id="coinGrad" cx="38%" cy="35%" r="60%">
+        <stop offset="0%"   stop-color="#FFE97A"/>
+        <stop offset="45%"  stop-color="#F5C842"/>
+        <stop offset="100%" stop-color="#C8941A"/>
+      </radialGradient>
+      <!-- Coin rim -->
+      <radialGradient id="coinRim" cx="50%" cy="50%" r="50%">
+        <stop offset="0%"   stop-color="#F5C842"/>
+        <stop offset="100%" stop-color="#A0720A"/>
+      </radialGradient>
+
+      <!-- Soil gradient -->
+      <radialGradient id="soilGrad" cx="50%" cy="40%" r="60%">
+        <stop offset="0%"   stop-color="#3A2010"/>
+        <stop offset="100%" stop-color="#1C0E06"/>
+      </radialGradient>
+
+      <!-- Glow filter -->
+      <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="5" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="leafShadow" x="-10%" y="-10%" width="120%" height="130%">
+        <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#0A3A1A" flood-opacity="0.4"/>
+      </filter>
+    </defs>
+
+    <!-- ─── Soil shadow ────────────────────────────── -->
+    <ellipse class="soil-shadow" id="soil" cx="170" cy="482" rx="72" ry="18"
+             fill="url(#soilGrad)" filter="url(#softGlow)"/>
+
+    <!-- ─── Seed ───────────────────────────────────── -->
+    <g class="seed" id="seed-group">
+      <ellipse cx="170" cy="478" rx="11" ry="7" fill="#5C3310"/>
+      <ellipse cx="170" cy="476" rx="8" ry="5" fill="#8B5A2B"/>
+      <ellipse cx="168" cy="475" rx="4" ry="2.5" fill="#B8814A" opacity="0.6"/>
+    </g>
+
+    <!-- ─── Stalk (main spine) ──────────────────────── -->
+    <!-- Shadow pass -->
+    <path id="stalk-shadow" class="stalk-path"
+      d="M170,478 C168,440 164,400 166,360 C168,320 172,285 170,250
+         C168,215 165,180 167,145 C169,115 171,90 170,70"
+      stroke="#0A3D1E" stroke-width="11" fill="none" stroke-linecap="round"
+      opacity="0.35"/>
+    <!-- Main stalk -->
+    <path id="stalk-main" class="stalk-path"
+      d="M170,478 C168,440 164,400 166,360 C168,320 172,285 170,250
+         C168,215 165,180 167,145 C169,115 171,90 170,70"
+      stroke="url(#stalkGrad)" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <!-- Highlight -->
+    <path id="stalk-hl" class="stalk-path stalk-highlight"
+      d="M171,478 C169,440 165,400 167,360 C169,320 173,285 171,250
+         C169,215 166,180 168,145 C170,115 172,90 171,70"
+      stroke="#5FE8A0" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.45"/>
+
+    <!-- ─── Node dots (appear with stalk) ──────────── -->
+    <circle id="node1" cx="170" cy="400" r="5" fill="#26A660" opacity="0"/>
+    <circle id="node2" cx="170" cy="340" r="5" fill="#26A660" opacity="0"/>
+    <circle id="node3" cx="170" cy="280" r="5" fill="#26A660" opacity="0"/>
+    <circle id="node4" cx="170" cy="220" r="5" fill="#26A660" opacity="0"/>
+    <circle id="node5" cx="170" cy="160" r="5" fill="#26A660" opacity="0"/>
+    <circle id="node6" cx="170" cy="105" r="5" fill="#26A660" opacity="0"/>
+
+    <!-- ─── LEAF 1 — Right, bottom (node at y=400) ─── -->
+    <g class="leaf-group" id="leaf1"
+       style="--ox:170px; --oy:400px; --start-rot:-25deg;">
+      <!-- branch line -->
+      <line x1="170" y1="400" x2="230" y2="385" stroke="#0F5C2A" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- leaf body -->
+      <path d="M230,385 C252,365 268,352 265,340 C262,330 245,332 228,342
+               C210,352 195,365 193,378 C191,388 205,398 220,393 Z"
+            fill="url(#leafGradR)" filter="url(#leafShadow)"/>
+      <!-- vein -->
+      <path d="M230,385 C240,365 255,350 263,341"
+            stroke="#0A4A25" stroke-width="1.5" fill="none" opacity="0.7"/>
+      <path d="M220,376 C228,362 238,352 248,345"
+            stroke="#0A4A25" stroke-width="0.9" fill="none" opacity="0.45"/>
+      <!-- highlight -->
+      <path d="M215,372 C228,358 244,348 256,341"
+            stroke="#5FE8A0" stroke-width="1.8" fill="none" class="leaf-shimmer" opacity="0.2"/>
+      <!-- Coin group 1 -->
+      <g class="coin-group" id="coin1" style="--cx:243px; --cy:362px;">
+        <circle cx="243" cy="362" r="17" fill="url(#coinRim)"/>
+        <circle cx="243" cy="362" r="14" fill="url(#coinGrad)"/>
+        <circle cx="243" cy="362" r="11" fill="none" stroke="#C8941A" stroke-width="1.2" opacity="0.6"/>
+        <text x="243" y="367" text-anchor="middle" font-family="Arial Black,Arial" font-size="13"
+              font-weight="900" fill="#8B5A00">$</text>
+        <circle cx="238" cy="357" r="3.5" fill="white" opacity="0.35"/>
+      </g>
+    </g>
+
+    <!-- ─── LEAF 2 — Left (node at y=340) ─────────── -->
+    <g class="leaf-group" id="leaf2"
+       style="--ox:170px; --oy:340px; --start-rot:25deg;">
+      <line x1="170" y1="340" x2="112" y2="325" stroke="#0F5C2A" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M112,325 C90,305 74,292 77,280 C80,270 97,272 114,282
+               C132,292 147,305 149,318 C151,328 137,338 122,333 Z"
+            fill="url(#leafGradL)" filter="url(#leafShadow)"/>
+      <path d="M112,325 C102,305 87,290 79,281"
+            stroke="#0A4A25" stroke-width="1.5" fill="none" opacity="0.7"/>
+      <path d="M122,316 C114,302 102,290 92,283"
+            stroke="#0A4A25" stroke-width="0.9" fill="none" opacity="0.45"/>
+      <path d="M126,312 C116,298 104,287 94,280"
+            stroke="#5FE8A0" stroke-width="1.8" fill="none" class="leaf-shimmer" opacity="0.2" style="animation-delay:0.4s"/>
+      <g class="coin-group" id="coin2" style="--cx:99px; --cy:302px;">
+        <circle cx="99" cy="302" r="17" fill="url(#coinRim)"/>
+        <circle cx="99" cy="302" r="14" fill="url(#coinGrad)"/>
+        <circle cx="99" cy="302" r="11" fill="none" stroke="#C8941A" stroke-width="1.2" opacity="0.6"/>
+        <text x="99" y="307" text-anchor="middle" font-family="Arial Black,Arial" font-size="13"
+              font-weight="900" fill="#8B5A00">$</text>
+        <circle cx="94" cy="297" r="3.5" fill="white" opacity="0.35"/>
+      </g>
+    </g>
+
+    <!-- ─── LEAF 3 — Right (node at y=280) ───────── -->
+    <g class="leaf-group" id="leaf3"
+       style="--ox:170px; --oy:280px; --start-rot:-20deg;">
+      <line x1="170" y1="280" x2="234" y2="263" stroke="#0F5C2A" stroke-width="3" stroke-linecap="round"/>
+      <path d="M234,263 C258,242 275,228 272,215 C269,204 251,207 233,218
+               C214,229 197,243 196,257 C194,268 209,278 225,272 Z"
+            fill="url(#leafGradR)" filter="url(#leafShadow)"/>
+      <path d="M234,263 C245,243 261,228 270,216"
+            stroke="#0A4A25" stroke-width="1.5" fill="none" opacity="0.7"/>
+      <path d="M222,254 C232,236 245,223 255,214"
+            stroke="#0A4A25" stroke-width="0.9" fill="none" opacity="0.45"/>
+      <path d="M218,250 C230,232 244,220 255,211"
+            stroke="#5FE8A0" stroke-width="1.8" fill="none" class="leaf-shimmer" opacity="0.2" style="animation-delay:0.8s"/>
+      <g class="coin-group" id="coin3" style="--cx:249px; --cy:237px;">
+        <circle cx="249" cy="237" r="17" fill="url(#coinRim)"/>
+        <circle cx="249" cy="237" r="14" fill="url(#coinGrad)"/>
+        <circle cx="249" cy="237" r="11" fill="none" stroke="#C8941A" stroke-width="1.2" opacity="0.6"/>
+        <text x="249" y="242" text-anchor="middle" font-family="Arial Black,Arial" font-size="13"
+              font-weight="900" fill="#8B5A00">$</text>
+        <circle cx="244" cy="232" r="3.5" fill="white" opacity="0.35"/>
+      </g>
+    </g>
+
+    <!-- ─── LEAF 4 — Left (node at y=220) ─────────── -->
+    <g class="leaf-group" id="leaf4"
+       style="--ox:170px; --oy:220px; --start-rot:20deg;">
+      <line x1="170" y1="220" x2="108" y2="203" stroke="#0F5C2A" stroke-width="3" stroke-linecap="round"/>
+      <path d="M108,203 C84,182 67,168 70,155 C73,144 91,147 109,158
+               C128,169 145,184 146,198 C148,210 133,220 117,214 Z"
+            fill="url(#leafGradL)" filter="url(#leafShadow)"/>
+      <path d="M108,203 C97,183 81,168 72,156"
+            stroke="#0A4A25" stroke-width="1.5" fill="none" opacity="0.7"/>
+      <path d="M118,193 C109,175 95,161 85,152"
+            stroke="#0A4A25" stroke-width="0.9" fill="none" opacity="0.45"/>
+      <path d="M121,190 C112,172 98,158 88,149"
+            stroke="#5FE8A0" stroke-width="1.8" fill="none" class="leaf-shimmer" opacity="0.2" style="animation-delay:1.2s"/>
+      <g class="coin-group" id="coin4" style="--cx:91px; --cy:177px;">
+        <circle cx="91" cy="177" r="16" fill="url(#coinRim)"/>
+        <circle cx="91" cy="177" r="13" fill="url(#coinGrad)"/>
+        <circle cx="91" cy="177" r="10" fill="none" stroke="#C8941A" stroke-width="1.2" opacity="0.6"/>
+        <text x="91" y="182" text-anchor="middle" font-family="Arial Black,Arial" font-size="12"
+              font-weight="900" fill="#8B5A00">$</text>
+        <circle cx="86" cy="172" r="3" fill="white" opacity="0.35"/>
+      </g>
+    </g>
+
+    <!-- ─── LEAF 5 — Right (node at y=160) ───────── -->
+    <g class="leaf-group" id="leaf5"
+       style="--ox:170px; --oy:160px; --start-rot:-15deg;">
+      <line x1="170" y1="160" x2="228" y2="143" stroke="#0F5C2A" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M228,143 C250,122 265,108 262,96 C259,85 241,88 224,100
+               C206,111 192,126 192,140 C192,151 205,160 220,154 Z"
+            fill="url(#leafGradR)" filter="url(#leafShadow)"/>
+      <path d="M228,143 C240,123 256,108 260,97"
+            stroke="#0A4A25" stroke-width="1.5" fill="none" opacity="0.7"/>
+      <path d="M217,135 C227,116 241,102 250,93"
+            stroke="#0A4A25" stroke-width="0.9" fill="none" opacity="0.45"/>
+      <g class="coin-group" id="coin5" style="--cx:241px; --cy:118px;">
+        <circle cx="241" cy="118" r="15" fill="url(#coinRim)"/>
+        <circle cx="241" cy="118" r="12" fill="url(#coinGrad)"/>
+        <circle cx="241" cy="118" r="9.5" fill="none" stroke="#C8941A" stroke-width="1.1" opacity="0.6"/>
+        <text x="241" y="122" text-anchor="middle" font-family="Arial Black,Arial" font-size="11"
+              font-weight="900" fill="#8B5A00">$</text>
+        <circle cx="237" cy="114" r="2.8" fill="white" opacity="0.35"/>
+      </g>
+    </g>
+
+    <!-- ─── LEAF 6 — Left, top (node at y=105) ──── -->
+    <g class="leaf-group" id="leaf6"
+       style="--ox:170px; --oy:105px; --start-rot:15deg;">
+      <line x1="170" y1="105" x2="115" y2="88" stroke="#0F5C2A" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M115,88 C92,68 77,54 80,42 C83,31 100,35 117,47
+               C135,59 149,74 149,88 C149,99 135,108 120,102 Z"
+            fill="url(#leafGradL)" filter="url(#leafShadow)"/>
+      <path d="M115,88 C103,69 88,54 81,43"
+            stroke="#0A4A25" stroke-width="1.5" fill="none" opacity="0.7"/>
+      <path d="M124,79 C115,61 100,47 91,38"
+            stroke="#0A4A25" stroke-width="0.9" fill="none" opacity="0.45"/>
+      <g class="coin-group" id="coin6" style="--cx:100px; --cy:64px;">
+        <circle cx="100" cy="64" r="15" fill="url(#coinRim)"/>
+        <circle cx="100" cy="64" r="12" fill="url(#coinGrad)"/>
+        <circle cx="100" cy="64" r="9.5" fill="none" stroke="#C8941A" stroke-width="1.1" opacity="0.6"/>
+        <text x="100" y="68" text-anchor="middle" font-family="Arial Black,Arial" font-size="11"
+              font-weight="900" fill="#8B5A00">$</text>
+        <circle cx="96" cy="60" r="2.8" fill="white" opacity="0.35"/>
+      </g>
+    </g>
+
+    <!-- ─── Tip bud ─────────────────────────────── -->
+    <g id="tip-bud" opacity="0">
+      <circle cx="170" cy="68" r="8" fill="#26A660"/>
+      <circle cx="170" cy="68" r="5" fill="#2ECC71"/>
+      <circle cx="168" cy="66" r="2.5" fill="#5FE8A0" opacity="0.7"/>
+    </g>
+
+  </svg>
+
+  <!-- ─── Wordmark ─────────────────────────────────── -->
+  <div class="wordmark" id="wordmark">
+    <h1>Beanstalk</h1>
+    <p>Invest · Learn · Grow</p>
+  </div>
+
+  <!-- ─── Replay ────────────────────────────────────── -->
+  <button class="replay-btn" id="replayBtn" onclick="runAnimation()">↺ Replay</button>
+
+</div>
+
+<script>
+// ─── Utility ────────────────────────────────────────────
+const el = id => document.getElementById(id);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+function setStalkProgress(pct) {
+  const total = 600;
+  const offset = total * (1 - Math.min(pct, 1));
+  ['stalk-shadow','stalk-main','stalk-hl'].forEach(id => {
+    el(id).style.strokeDashoffset = offset;
+  });
+}
+
+function showNode(n) {
+  el('node'+n).style.opacity = '1';
+  el('node'+n).style.transition = 'opacity 0.3s ease';
+}
+
+function showLeaf(n) {
+  el('leaf'+n).classList.add('visible');
+}
+
+function showCoin(n) {
+  el('coin'+n).classList.add('visible');
+}
+
+// ─── Gold particle burst ─────────────────────────────────
+function burst(x, y, count=8) {
+  const stage = el('stage');
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'sparkle';
+    const angle = (Math.PI*2/count)*i + Math.random()*0.5;
+    const dist = 22 + Math.random()*18;
+    const dx = Math.cos(angle)*dist;
+    const dy = Math.sin(angle)*dist;
+    p.style.left = (x - 3)+'px';
+    p.style.top  = (y - 3)+'px';
+    stage.appendChild(p);
+    p.animate([
+      { opacity: 1, transform: 'translate(0,0) scale(1)' },
+      { opacity: 0, transform: `translate(${dx}px,${dy}px) scale(0.3)` }
+    ], { duration: 600, easing: 'ease-out', delay: Math.random()*100 })
+      .onfinish = () => p.remove();
+  }
+}
+
+// ─── Coin positions on stage for burst (approx) ─────────
+const coinBurstPos = [
+  [294, 248], // coin1 (right, bottom)
+  [148, 310], // coin2 (left)
+  [300, 173], // coin3 (right)
+  [140, 113], // coin4 (left)
+  [292,  54], // coin5 (right)
+  [147,   0], // coin6 (left, top)
+];
+
+// ─── Main animation sequence ─────────────────────────────
+async function runAnimation() {
+  // Reset everything
+  el('replayBtn').classList.remove('visible');
+  el('wordmark').classList.remove('visible');
+  el('tip-bud').style.opacity = '0';
+  el('soil').style.opacity = '0';
+  const seedGroup = el('seed-group');
+  seedGroup.style.opacity = '0';
+  seedGroup.style.transform = 'scale(1) rotate(0deg)';
+  setStalkProgress(0);
+  for (let n=1;n<=6;n++) {
+    el('node'+n).style.opacity = '0';
+    el('leaf'+n).classList.remove('visible');
+    el('coin'+n).classList.remove('visible');
+  }
+  const plant = el('plant');
+  plant.classList.remove('swaying');
+  document.querySelectorAll('.floating-coin').forEach(c=>c.classList.remove('floating-coin'));
+
+  await wait(400);
+
+  // 1. Soil materialises
+  el('soil').style.opacity = '1';
+  await wait(500);
+
+  // 2. Seed appears
+  seedGroup.style.opacity = '1';
+  await wait(700);
+
+  // 3. Seed "cracks" — scale pulse
+  seedGroup.style.transform = 'scale(1.3) rotate(-8deg)';
+  await wait(200);
+  seedGroup.style.transform = 'scale(0.85) rotate(4deg)';
+  await wait(150);
+  seedGroup.style.transform = 'scale(1) rotate(0deg)';
+  await wait(300);
+
+  // 4. Stalk grows
+  // Animate in stages so nodes pop at right time
+  const stalkDuration = 1600; // ms total
+  const stepMs = 40;
+  const steps = stalkDuration / stepMs;
+  const nodeAt = [0.20, 0.38, 0.56, 0.72, 0.85, 0.95];
+  let nodeShown = [false,false,false,false,false,false];
+
+  for (let i=0; i<=steps; i++) {
+    const pct = i/steps;
+    setStalkProgress(pct);
+    // Pop nodes at threshold
+    for (let n=0;n<6;n++) {
+      if (!nodeShown[n] && pct >= nodeAt[n]) {
+        showNode(n+1);
+        nodeShown[n] = true;
+      }
+    }
+    if (i < steps) await wait(stepMs);
+  }
+
+  // Tip bud appears
+  el('tip-bud').style.transition = 'opacity 0.4s ease';
+  el('tip-bud').style.opacity = '1';
+  await wait(400);
+
+  // Seed fades as stalk rises
+  seedGroup.style.transition = 'opacity 0.6s ease';
+  seedGroup.style.opacity = '0';
+
+  // 5. Leaves appear one by one with coins
+  const leafDelay = 420;
+  const coinDelay = 300;
+
+  for (let n=1; n<=6; n++) {
+    await wait(leafDelay);
+    showLeaf(n);
+    await wait(coinDelay);
+    showCoin(n);
+    // Burst sparkle at coin position
+    const [bx, by] = coinBurstPos[n-1];
+    // map SVG coords to stage coords (approx: SVG 340px wide, offset left 50%)
+    const svgEl = el('plant');
+    const svgRect = svgEl.getBoundingClientRect();
+    const stageRect = el('stage').getBoundingClientRect();
+    const scaleX = svgRect.width / 340;
+    const scaleY = svgRect.height / 500;
+    const px = (svgRect.left - stageRect.left) + bx * scaleX;
+    const py = (svgRect.top  - stageRect.top)  + by * scaleY;
+    burst(px, py, 7);
+  }
+
+  await wait(600);
+
+  // 6. Wordmark appears
+  el('wordmark').classList.add('visible');
+
+  await wait(800);
+
+  // 7. Idle animations begin
+  plant.classList.add('swaying');
+  document.querySelectorAll('.coin-group.visible').forEach((c,i) => {
+    c.style.animation = `float-coin ${2.4 + i*0.25}s ease-in-out infinite`;
+    c.style.animationDelay = `${i * 0.18}s`;
+  });
+
+  await wait(1200);
+  el('replayBtn').classList.add('visible');
+}
+
+// ─── Start on load ──────────────────────────────────────
+window.addEventListener('load', () => {
+  setTimeout(runAnimation, 300);
+});
+</script>
+</body>
+</html>

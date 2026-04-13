@@ -1,0 +1,623 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:intl/intl.dart';
+import 'pages/lessons/lessons_page.dart';
+import 'pages/stocks/stock_search_page.dart';
+import 'pages/stocks/stock_detail_page.dart';
+import 'pages/contests/contests_page.dart';
+import 'pages/profile/profile_page.dart';
+import 'pages/onboarding/onboarding_flow.dart';
+import 'pages/notifications/notifications_page.dart';
+import 'pages/groups/groups_page.dart';
+import 'services/portfolio/portfolio_service.dart';
+import 'services/notification/notification_service.dart';
+import 'services/group/group_service.dart';
+import 'data/cash_tips.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+  runApp(const BeanstalkApp());
+}
+
+class BeanstalkApp extends StatelessWidget {
+  const BeanstalkApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Beanstalk',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2E7D32),
+          primary: const Color(0xFF2E7D32),
+        ),
+        useMaterial3: true,
+      ),
+      home: const SplashScreen(),
+      routes: {
+        '/home': (_) => const HomeScreen(),
+      },
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 2), () async {
+      if (!mounted) return;
+      final done = await isOnboardingComplete();
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => done ? const HomeScreen() : const OnboardingFlow(),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF2E7D32),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('🌱', style: TextStyle(fontSize: 80)),
+            SizedBox(height: 16),
+            Text('Beanstalk',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold)),
+            SizedBox(height: 8),
+            Text('Learn. Trade. Compete.',
+                style: TextStyle(color: Colors.white70, fontSize: 16)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Home Screen ───────────────────────────────────────────────────────────────
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _index = 0;
+  int _groupCount = 0;
+  // Keys let us call reload() on LessonsPage and ProfilePage when their tabs
+  // are selected, ensuring XP is always up-to-date without relying solely on initState.
+  final _lessonsKey   = GlobalKey<LessonsPageState>();
+  final _profileKey   = GlobalKey<ProfilePageState>();
+  final _dashboardKey = GlobalKey<_DashboardPageState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGroupCount();
+  }
+
+  Future<void> _loadGroupCount() async {
+    final count = await GroupService.joinedCount();
+    if (!mounted) return;
+    setState(() => _groupCount = count);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _index,
+        children: [
+          DashboardPage(key: _dashboardKey),
+          const ContestsPage(),
+          const StockSearchPage(),
+          LessonsPage(key: _lessonsKey),
+          const GroupsPage(),
+          ProfilePage(key: _profileKey),
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _index,
+        onTap: (i) {
+          setState(() => _index = i);
+          if (i == 0) {
+            debugPrint('[HomeScreen] tapping Home  dashState=${_dashboardKey.currentState}');
+            _dashboardKey.currentState?.reload();
+          }
+          if (i == 3) _lessonsKey.currentState?.reload();
+          if (i == 4) _loadGroupCount();
+          if (i == 5) _profileKey.currentState?.reload();
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFF2E7D32),
+        unselectedItemColor: Colors.grey,
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home_outlined),           activeIcon: Icon(Icons.home),           label: 'Home'),
+          const BottomNavigationBarItem(icon: Icon(Icons.emoji_events_outlined),   activeIcon: Icon(Icons.emoji_events),   label: 'Contests'),
+          const BottomNavigationBarItem(icon: Icon(Icons.search_outlined),         activeIcon: Icon(Icons.search),         label: 'Stocks'),
+          const BottomNavigationBarItem(icon: Icon(Icons.school_outlined),         activeIcon: Icon(Icons.school),         label: 'Learn'),
+          BottomNavigationBarItem(
+            icon: _groupCount > 0
+                ? Badge(
+                    label: Text('$_groupCount',
+                        style: const TextStyle(fontSize: 10, color: Colors.white)),
+                    backgroundColor: const Color(0xFF2E7D32),
+                    child: const Icon(Icons.group_outlined))
+                : const Icon(Icons.group_outlined),
+            activeIcon: const Icon(Icons.group),
+            label: 'Groups',
+          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.person_outline),          activeIcon: Icon(Icons.person),         label: 'Profile'),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Dashboard Page ────────────────────────────────────────────────────────────
+
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  static const _featured = ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'SPY'];
+  static final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+
+  double _cash          = 10000;
+  double _holdingsValue = 0;
+  double _todayGain     = 0;
+  Map<String, Holding> _holdings = {};
+  int _unreadNotifs = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPortfolio();
+    _loadUnreadCount();
+  }
+
+  Future<void> reload() async {
+    await _loadPortfolio();
+    await _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final count = await NotificationService.unreadCount();
+    if (!mounted) return;
+    setState(() => _unreadNotifs = count);
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationsPage()),
+    );
+    // Refresh badge after returning
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadPortfolio() async {
+    debugPrint('[Dashboard._loadPortfolio] called  mounted=$mounted');
+    final data = await PortfolioService.load();
+    if (!mounted) {
+      debugPrint('[Dashboard._loadPortfolio] BAILED — not mounted');
+      return;
+    }
+
+    debugPrint('[Dashboard._loadPortfolio] cash=${data.cash}  holdingsCount=${data.holdings.length}  keys=${data.holdings.keys.toList()}');
+
+    double holdingsValue = 0;
+    double todayGain     = 0;
+    for (final holding in data.holdings.values) {
+      final stock = kAllStocks.where((s) => s.symbol == holding.symbol).firstOrNull;
+      debugPrint('[Dashboard._loadPortfolio]   → ${holding.symbol} qty=${holding.quantity}  stockFound=${stock != null}');
+      if (stock != null) {
+        holdingsValue += holding.quantity * stock.price;
+        todayGain     += holding.quantity * stock.changeAmount;
+      }
+    }
+
+    setState(() {
+      _cash          = data.cash;
+      _holdings      = data.holdings;
+      _holdingsValue = holdingsValue;
+      _todayGain     = todayGain;
+    });
+    debugPrint('[Dashboard._loadPortfolio] setState done  _holdings.length=${_holdings.length}');
+  }
+
+  double get _totalValue => _cash + _holdingsValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final gainPositive = _todayGain >= 0;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF2E7D32),
+        foregroundColor: Colors.white,
+        title: const Text('Beanstalk', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: _openNotifications,
+              ),
+              if (_unreadNotifs > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF2E7D32), width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        _unreadNotifs > 9 ? '9+' : '$_unreadNotifs',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadPortfolio,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Portfolio card
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Portfolio Value',
+                      style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Text(
+                    _currency.format(_totalValue),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${gainPositive ? '+' : ''}${_currency.format(_todayGain)} today',
+                    style: TextStyle(
+                        color: gainPositive
+                            ? Colors.greenAccent.shade100
+                            : Colors.red.shade200,
+                        fontSize: 13),
+                  ),
+                  if (_holdings.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _portfolioChip(
+                            'Cash', _currency.format(_cash)),
+                        const SizedBox(width: 10),
+                        _portfolioChip(
+                            'Invested', _currency.format(_holdingsValue)),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // Holdings section — always rendered so empty state is visible
+            const SizedBox(height: 20),
+            const Text('Your Holdings',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 8),
+            if (_holdings.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12)),
+                child: const Center(
+                  child: Text('No holdings yet — buy a stock to get started',
+                      style: TextStyle(color: Colors.grey, fontSize: 13)),
+                ),
+              )
+            else
+              ..._holdings.values.map((h) {
+                final stock = kAllStocks
+                    .where((s) => s.symbol == h.symbol)
+                    .firstOrNull;
+                final price = stock?.price ?? h.avgCost;
+                final value = h.quantity * price;
+                final gain  = h.unrealizedGain(price);
+                final pos   = gain >= 0;
+                return _holdingRow(h, price, value, gain, pos);
+              }),
+            // Cash daily tip
+            const SizedBox(height: 8),
+            _cashTipCard(),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Market Today',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                TextButton(
+                  onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const StockSearchPage())),
+                  child: const Text('See all',
+                      style: TextStyle(color: Color(0xFF2E7D32))),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ..._featured.map((sym) {
+              final stock = kAllStocks.where((s) => s.symbol == sym).firstOrNull;
+              if (stock == null) return const SizedBox.shrink();
+              return _stockRow(context, stock);
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _portfolioChip(String label, String value) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(color: Colors.white60, fontSize: 10)),
+            Text(value,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+
+  Widget _holdingRow(
+      Holding h, double price, double value, double gain, bool pos) {
+    final gainPct = h.avgCost > 0
+        ? ((price - h.avgCost) / h.avgCost * 100)
+        : 0.0;
+    return GestureDetector(
+      onTap: () {
+        final stock =
+            kAllStocks.where((s) => s.symbol == h.symbol).firstOrNull;
+        if (stock != null) {
+          Navigator.push(context,
+              MaterialPageRoute(
+                  builder: (_) => StockDetailPage(stock: stock)))
+              .then((_) => _loadPortfolio());
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Center(
+                child: Text(
+                  h.symbol.substring(0, h.symbol.length.clamp(0, 2)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Color(0xFF2E7D32)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(h.symbol,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(
+                      '${h.quantity.toStringAsFixed(h.quantity % 1 == 0 ? 0 : 4)} shares'
+                      '  ·  avg ${_currency.format(h.avgCost)}',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ]),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(_currency.format(value),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(
+                '${pos ? '+' : ''}${_currency.format(gain)} (${gainPct.toStringAsFixed(1)}%)',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: pos ? const Color(0xFF2E7D32) : Colors.red),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cashTipCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFA5D6A7), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Cash thinking illustration
+          Padding(
+            padding: const EdgeInsets.only(left: 8, bottom: 0),
+            child: SvgPicture.asset(
+              'assets/images/cash/cash_thinking.svg',
+              height: 60,
+              width: 60,
+            ),
+          ),
+          // Tip content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 12, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text("Cash's Daily Tip",
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2E7D32))),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    CashTips.getDailyTip(),
+                    style: const TextStyle(
+                        fontSize: 13, height: 1.5, color: Colors.black87),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stockRow(BuildContext context, StockItem stock) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => StockDetailPage(stock: stock)))
+          .then((_) => _loadPortfolio()),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Center(
+                child: Text(
+                  stock.symbol.substring(0, stock.symbol.length.clamp(0, 2)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: Color(0xFF2E7D32)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(stock.symbol,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(stock.name,
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ]),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(stock.formattedPrice,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14)),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: stock.isPositive
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(stock.formattedChange,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: stock.isPositive
+                            ? const Color(0xFF2E7D32)
+                            : Colors.red)),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

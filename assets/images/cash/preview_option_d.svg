@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240">
+
+  <!-- Shoulders / hoodie — slightly angled -->
+  <path d="M25 240 Q28 185 52 172 Q73 162 102 160 Q128 162 148 172 Q168 185 172 240Z" fill="#4A6330"/>
+  <!-- Hoodie neckline -->
+  <path d="M80 168 Q100 185 122 168" stroke="#3A5228" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Neck -->
+  <rect x="87" y="145" width="27" height="20" rx="6" fill="#C8874A"/>
+
+  <!-- Head — slightly wider at top for 3/4 feel, shifted right -->
+  <ellipse cx="103" cy="98" rx="46" ry="52" fill="#C8874A"/>
+
+  <!-- Right ear (closer side, more visible) -->
+  <ellipse cx="148" cy="106" rx="7" ry="9" fill="#C8874A"/>
+  <ellipse cx="148" cy="106" rx="4" ry="5.5" fill="#B5742F"/>
+  <!-- Left ear (far side, mostly hidden by cap) -->
+  <ellipse cx="58" cy="108" rx="5" ry="6.5" fill="#C8874A"/>
+
+  <!-- Hair peeking out from under cap sides + back -->
+  <!-- Back/side right -->
+  <path d="M140 78 Q152 90 150 118 Q146 108 142 98 Q145 88 140 78Z" fill="#2E1A0E"/>
+  <!-- Left side wisp under brim -->
+  <path d="M66 88 Q58 98 60 116 Q64 106 68 96Z" fill="#2E1A0E"/>
+  <!-- Wavy bits below cap brim sides -->
+  <path d="M68 96 Q64 106 66 116" stroke="#2E1A0E" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M140 96 Q144 108 142 120" stroke="#2E1A0E" stroke-width="6" fill="none" stroke-linecap="round"/>
+
+  <!-- ── SNAPBACK CAP ── -->
+  <!-- Cap body — slightly angled (3/4 view) -->
+  <path d="M60 90
+    Q62 50 103 44
+    Q144 50 146 90
+    Q135 72 103 70
+    Q71 72 60 90Z"
+    fill="#1C2B1E"/>
+  <!-- Cap panel stitching lines (6-panel look) -->
+  <path d="M103 44 Q103 70 103 90" stroke="#2E3D2A" stroke-width="1" fill="none"/>
+  <path d="M103 44 Q120 58 135 74" stroke="#2E3D2A" stroke-width="1" fill="none" opacity="0.6"/>
+  <path d="M103 44 Q86 58 71 74" stroke="#2E3D2A" stroke-width="1" fill="none" opacity="0.6"/>
+  <!-- Strapback band at bottom of cap -->
+  <path d="M60 90 Q62 96 72 97 Q103 98 140 95 Q146 93 146 90" fill="#141F14"/>
+  <!-- Small logo patch on front -->
+  <ellipse cx="103" cy="68" rx="8" ry="7" fill="#2E3D2A"/>
+  <text x="100" y="71" font-size="7" fill="#4CAF50" font-family="sans-serif" font-weight="bold">$</text>
+  <!-- Flat brim (snapback brim — 3/4 angle so brim goes right) -->
+  <path d="M72 97 Q103 102 142 96 Q156 94 162 90 Q158 86 148 86 Q136 88 103 92 Q72 95 60 91 Q54 90 60 95Z" fill="#141F14"/>
+  <!-- Brim underside lighter -->
+  <path d="M72 97 Q103 102 142 96 Q136 99 103 103 Q72 100 72 97Z" fill="#2E3D2A"/>
+
+  <!-- ── FACE ── -->
+
+  <!-- Eyebrows — 3/4 angle: left brow slightly foreshortened -->
+  <path d="M74 88 Q82 84 90 87" stroke="#2E1A0E" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  <path d="M110 86 Q120 82 130 86" stroke="#2E1A0E" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Eyes — almond, right eye slightly larger (near side) -->
+  <!-- Left eye (far side — slightly smaller) -->
+  <path d="M72 97 Q81 91 90 97 Q81 104 72 97Z" fill="white"/>
+  <ellipse cx="81" cy="97" rx="4.5" ry="5" fill="#3A7D44"/>
+  <ellipse cx="81" cy="97" rx="2.5" ry="2.8" fill="#1C2B1E"/>
+  <ellipse cx="82.5" cy="95.2" rx="1.2" ry="1.2" fill="white"/>
+  <path d="M72 97 Q81 91 90 97" stroke="#2E1A0E" stroke-width="1.2" fill="none"/>
+
+  <!-- Right eye (near side — larger, more open) -->
+  <path d="M108 95 Q119 88 130 95 Q119 103 108 95Z" fill="white"/>
+  <ellipse cx="119" cy="95" rx="5.5" ry="6" fill="#3A7D44"/>
+  <ellipse cx="119" cy="95" rx="3" ry="3.2" fill="#1C2B1E"/>
+  <ellipse cx="120.5" cy="93" rx="1.4" ry="1.4" fill="white"/>
+  <path d="M108 95 Q119 88 130 95" stroke="#2E1A0E" stroke-width="1.2" fill="none"/>
+
+  <!-- Nose — 3/4 so nose bridge leans right slightly -->
+  <path d="M103 106 Q105 116 106 120" stroke="#B5742F" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M100 120 Q103 125 108 121" stroke="#B5742F" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Mouth — slightly asymmetric for 3/4 angle, confident half-smile -->
+  <path d="M88 132 Q100 141 116 133" stroke="#7A3B10" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <!-- Hint of lower lip -->
+  <path d="M92 136 Q100 141 112 137" stroke="#B5742F" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- Cheek warmth -->
+  <ellipse cx="78" cy="116" rx="9" ry="6" fill="#D4785A" opacity="0.22"/>
+  <ellipse cx="130" cy="114" rx="9" ry="6" fill="#D4785A" opacity="0.22"/>
+
+</svg>

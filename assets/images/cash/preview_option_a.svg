@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240">
+
+  <!-- Shoulders / hoodie -->
+  <path d="M30 240 Q32 185 55 172 Q75 162 100 160 Q125 162 145 172 Q168 185 170 240Z" fill="#4A6330"/>
+  <!-- Hoodie neckline V -->
+  <path d="M82 168 Q100 185 118 168" stroke="#3A5228" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Neck -->
+  <rect x="86" y="145" width="28" height="20" rx="6" fill="#C8874A"/>
+
+  <!-- Head — slim tall oval -->
+  <ellipse cx="100" cy="97" rx="44" ry="52" fill="#C8874A"/>
+
+  <!-- Ears -->
+  <ellipse cx="56" cy="103" rx="6.5" ry="8" fill="#C8874A"/>
+  <ellipse cx="144" cy="103" rx="6.5" ry="8" fill="#C8874A"/>
+  <!-- Inner ear -->
+  <ellipse cx="56" cy="103" rx="3.5" ry="5" fill="#B5742F"/>
+  <ellipse cx="144" cy="103" rx="3.5" ry="5" fill="#B5742F"/>
+
+  <!-- Hair — dark brown, wavy, natural top -->
+  <path d="M57 88
+    Q58 52 100 46
+    Q142 52 143 88
+    Q138 62 124 54
+    Q113 46 100 46
+    Q87 46 76 54
+    Q62 62 57 88Z"
+    fill="#2E1A0E"/>
+  <!-- Left side hair wisp -->
+  <path d="M57 88 Q50 98 52 118 Q56 106 60 96Z" fill="#2E1A0E"/>
+  <!-- Right side hair wisp -->
+  <path d="M143 88 Q150 98 148 118 Q144 106 140 96Z" fill="#2E1A0E"/>
+  <!-- Wavy hair texture strands on top -->
+  <path d="M78 54 Q72 44 80 40" stroke="#2E1A0E" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M92 48 Q88 38 96 36" stroke="#2E1A0E" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M106 47 Q103 37 110 35" stroke="#2E1A0E" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M118 52 Q116 44 122 42" stroke="#2E1A0E" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Eyebrows — natural arch, not too heavy -->
+  <path d="M73 80 Q82 76 91 79" stroke="#2E1A0E" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  <path d="M109 79 Q118 76 127 80" stroke="#2E1A0E" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Eyes — almond shaped -->
+  <!-- Left eye white -->
+  <path d="M72 92 Q82 85 92 92 Q82 100 72 92Z" fill="white"/>
+  <!-- Left iris green -->
+  <ellipse cx="82" cy="92" rx="5" ry="5.5" fill="#3A7D44"/>
+  <!-- Left pupil -->
+  <ellipse cx="82" cy="92" rx="2.8" ry="3" fill="#1C2B1E"/>
+  <!-- Left eye shine -->
+  <ellipse cx="83.5" cy="90" rx="1.4" ry="1.4" fill="white"/>
+  <!-- Left eyelid crease -->
+  <path d="M72 92 Q82 85 92 92" stroke="#2E1A0E" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+  <!-- Left lower lash line subtle -->
+  <path d="M73 93 Q82 99 91 93" stroke="#C8874A" stroke-width="0.8" fill="none" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Right eye white -->
+  <path d="M108 92 Q118 85 128 92 Q118 100 108 92Z" fill="white"/>
+  <!-- Right iris green -->
+  <ellipse cx="118" cy="92" rx="5" ry="5.5" fill="#3A7D44"/>
+  <!-- Right pupil -->
+  <ellipse cx="118" cy="92" rx="2.8" ry="3" fill="#1C2B1E"/>
+  <!-- Right eye shine -->
+  <ellipse cx="119.5" cy="90" rx="1.4" ry="1.4" fill="white"/>
+  <!-- Right eyelid crease -->
+  <path d="M108 92 Q118 85 128 92" stroke="#2E1A0E" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+  <path d="M109 93 Q118 99 127 93" stroke="#C8874A" stroke-width="0.8" fill="none" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Nose — simple bridge + nostrils -->
+  <path d="M100 100 Q100 110 100 114" stroke="#B5742F" stroke-width="1.2" fill="none"/>
+  <path d="M94 114 Q97 118 100 114 Q103 118 106 114" stroke="#B5742F" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Mouth — relaxed natural smile -->
+  <path d="M86 126 Q100 136 114 126" stroke="#7A3B10" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <!-- Lower lip hint -->
+  <path d="M90 130 Q100 136 110 130" stroke="#B5742F" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Cheek warmth -->
+  <ellipse cx="72" cy="112" rx="9" ry="6" fill="#D4785A" opacity="0.25"/>
+  <ellipse cx="128" cy="112" rx="9" ry="6" fill="#D4785A" opacity="0.25"/>
+
+</svg>

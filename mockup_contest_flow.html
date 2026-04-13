@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Beanstalk – Contest Flow Mockup</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #1a2e24;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 32px 16px 64px;
+}
+h1 { color: #fff; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.sub { color: #4CAF7D; font-size: 13px; margin-bottom: 28px; }
+
+.tabs { display: flex; gap: 8px; margin-bottom: 26px; flex-wrap: wrap; justify-content: center; }
+.tab {
+  padding: 8px 18px; border-radius: 20px; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.6);
+  transition: all .2s;
+}
+.tab.active { background: #1B8C4E; color: #fff; }
+
+.phone-wrap { width: 375px; filter: drop-shadow(0 40px 60px rgba(0,0,0,.5)); }
+.phone-shell { background: #111; border-radius: 46px; padding: 14px; border: 2px solid #333; }
+.phone-inner { background: #F7FBF8; border-radius: 34px; overflow: hidden; height: 740px; position: relative; }
+
+.status-bar {
+  background: #1B8C4E; display: flex; justify-content: space-between;
+  padding: 12px 20px 8px; color: #fff; font-size: 12px; font-weight: 600;
+}
+.screen { display: none; height: calc(100% - 36px); overflow-y: auto; }
+.screen.active { display: block; }
+
+/* ── shared ── */
+.app-bar { background: #1B8C4E; padding: 12px 16px 14px; color: #fff; }
+.ab-row { display: flex; align-items: center; gap: 10px; }
+.ab-back { font-size: 20px; cursor: pointer; }
+.ab-icon { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.15); display: flex; align-items: center; justify-content: center; font-size: 15px; cursor: pointer; }
+.ab-title { font-size: 18px; font-weight: 800; }
+.ab-sub { font-size: 11px; opacity: .75; }
+.ab-actions { margin-left: auto; display: flex; gap: 6px; }
+
+/* ── gradient hero ── */
+.hero {
+  background: linear-gradient(135deg,#1B8C4E,#146038);
+  padding: 14px 18px 0;
+  color: #fff;
+}
+.hero-eyebrow { font-size: 11px; opacity: .7; display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.hero-title { font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+.hero-desc { font-size: 12px; opacity: .78; margin-top: 4px; line-height: 1.4; }
+
+/* tab bar inside hero */
+.tab-strip {
+  display: flex; margin-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.12);
+}
+.t-tab {
+  flex: 1; padding: 10px 0; text-align: center;
+  font-size: 13px; font-weight: 600; color: rgba(255,255,255,.55);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+.t-tab.active { color: #fff; border-bottom-color: #2ECC71; }
+
+/* filter chips */
+.filter-row { background: #fff; padding: 10px 14px; display: flex; gap: 6px; overflow-x: auto; }
+.chip { padding: 5px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; white-space: nowrap; background: #f3f4f6; color: #6b7280; cursor: pointer; }
+.chip.active { background: #1B8C4E; color: #fff; }
+.chip.green-active { background: #2ECC71; color: #fff; }
+
+/* contest card */
+.c-card {
+  background: #fff; margin: 10px 14px 0; border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.06); overflow: hidden; cursor: pointer;
+}
+.c-head { background: rgba(27,140,78,.04); padding: 14px; }
+.c-badges { display: flex; gap: 6px; margin-bottom: 8px; }
+.badge {
+  padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; gap: 4px;
+}
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+.badge-live { background: rgba(34,197,94,.12); color: #16a34a; }
+.badge-dot-live { background: #16a34a; }
+.badge-beg { background: rgba(59,130,246,.12); color: #2563eb; }
+.badge-int { background: rgba(249,115,22,.12); color: #ea580c; }
+.badge-adv { background: rgba(239,68,68,.12); color: #dc2626; }
+.badge-joined { background: rgba(245,200,66,.2); color: #b45309; }
+.c-name { font-size: 15px; font-weight: 800; color: #111827; }
+.c-desc { font-size: 12px; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+.prize-pill {
+  margin-left: auto; padding: 8px 10px; border-radius: 12px; text-align: center;
+  background: linear-gradient(135deg,#2ECC71,rgba(46,204,113,.7)); color: #fff; flex-shrink: 0;
+}
+.prize-emoji { font-size: 16px; display: block; }
+.prize-val { font-size: 13px; font-weight: 900; }
+.prize-lbl { font-size: 9px; opacity: .8; }
+
+.c-stats { display: flex; padding: 10px 14px 2px; }
+.c-stat { flex: 1; }
+.c-stat-lbl { font-size: 10px; color: #9ca3af; }
+.c-stat-val { font-size: 12px; font-weight: 700; color: #111827; margin-top: 1px; }
+.stat-div { width: 1px; background: #e5e7eb; margin: 0 8px; }
+
+.prog-wrap { padding: 8px 14px 0; }
+.prog-row { display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+.prog-bar { height: 5px; background: #f3f4f6; border-radius: 3px; overflow: hidden; }
+.prog-fill { height: 100%; background: #2ECC71; border-radius: 3px; }
+
+.age-chips { padding: 8px 14px 0; display: flex; gap: 6px; }
+.age-chip { background: #f3f4f6; color: #6b7280; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+
+.c-actions { padding: 12px 14px; display: flex; gap: 8px; }
+.btn-outline {
+  padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 700;
+  border: 1.5px solid rgba(27,140,78,.35); color: #1B8C4E; background: #fff;
+  cursor: pointer; display: flex; align-items: center; gap: 4px;
+}
+.btn-fill {
+  flex: 1; padding: 10px 0; border-radius: 10px; font-size: 13px; font-weight: 700;
+  background: #2ECC71; color: #fff; text-align: center; cursor: pointer;
+}
+.btn-fill-dark { background: #1B8C4E; }
+.btn-fill-gold { background: #F5C842; color: #1a2e24; }
+.btn-ended { flex: 1; padding: 10px 0; border-radius: 10px; font-size: 13px; font-weight: 600; background: #f3f4f6; color: #9ca3af; text-align: center; }
+
+/* ── Detail page ── */
+.countdown-bar {
+  background: #EDF7F0; padding: 10px 18px;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid rgba(27,140,78,.15);
+}
+.cd-label { font-size: 12px; color: #1B8C4E; font-weight: 600; }
+.cd-units { margin-left: auto; display: flex; gap: 4px; }
+.cd-unit { background: rgba(27,140,78,.1); color: #1B8C4E; border-radius: 6px; padding: 4px 7px; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.qs-row { background: #fff; padding: 16px; display: flex; }
+.qs-item { flex: 1; text-align: center; }
+.qs-icon { font-size: 20px; margin-bottom: 4px; }
+.qs-val { font-size: 13px; font-weight: 800; }
+.qs-lbl { font-size: 10px; color: #9ca3af; margin-top: 1px; }
+.qs-div { width: 1px; background: #f3f4f6; margin: 4px 0; }
+
+.section-card { background: #fff; margin: 10px 14px 0; border-radius: 14px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+.sec-title { font-size: 11px; font-weight: 700; letter-spacing: .7px; color: #9ca3af; text-transform: uppercase; display: flex; align-items: center; gap: 5px; margin-bottom: 12px; }
+
+.prize-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; }
+.prize-1 { background: rgba(250,204,21,.08); border: 1px solid rgba(250,204,21,.25); }
+.prize-2 { background: rgba(148,163,184,.08); border: 1px solid rgba(148,163,184,.25); }
+.prize-3 { background: rgba(205,124,47,.08); border: 1px solid rgba(205,124,47,.25); }
+.prize-medal { font-size: 22px; }
+.prize-place { font-size: 11px; color: #9ca3af; }
+.prize-name { font-size: 14px; font-weight: 700; }
+.prize-amount { padding: 5px 10px; border-radius: 8px; font-size: 14px; font-weight: 800; background: rgba(46,204,113,.12); color: #16a34a; margin-left: auto; }
+
+.rule-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f9fafb; }
+.rule-icon { width: 32px; height: 32px; border-radius: 8px; background: #EDF7F0; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.rule-lbl { font-size: 11px; color: #9ca3af; }
+.rule-val { font-size: 14px; font-weight: 600; margin-top: 1px; }
+
+.trade-bar {
+  position: sticky; bottom: 0; background: #fff;
+  padding: 10px 14px 20px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,.08);
+  display: flex; gap: 10px; align-items: center;
+}
+.cash-chip { flex: 1; }
+.cash-lbl { font-size: 11px; color: #9ca3af; }
+.cash-val { font-size: 13px; font-weight: 700; }
+
+/* ── Leaderboard ── */
+.lb-header { background: linear-gradient(135deg,#1B8C4E,#0f3d22); padding: 14px 18px 0; color: #fff; }
+.lb-meta { display: flex; gap: 14px; margin: 8px 0 14px; }
+.lb-meta-item { font-size: 11px; color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 4px; }
+.lb-tabs { display: flex; border-top: 1px solid rgba(255,255,255,.12); }
+.lb-tab { flex: 1; padding: 10px 0; text-align: center; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.55); cursor: pointer; border-bottom: 3px solid transparent; }
+.lb-tab.active { color: #fff; border-bottom-color: #2ECC71; }
+
+.podium { background: rgba(27,140,78,.03); padding: 16px; display: flex; align-items: flex-end; gap: 8px; }
+.pod-card { flex: 1; text-align: center; }
+.pod-emoji { font-size: 24px; }
+.pod-name { font-size: 11px; font-weight: 700; color: #111827; margin: 4px 0 2px; }
+.pod-pct { font-size: 11px; font-weight: 800; color: #2ECC71; }
+.pod-bar { border-radius: 8px 8px 0 0; border-top: 3px solid; margin-top: 6px; display: flex; align-items: center; justify-content: center; }
+.pod-bar-val { font-size: 12px; font-weight: 900; }
+.pod-1-bar { background: rgba(250,204,21,.15); border-color: #facc15; height: 80px; }
+.pod-1-val { color: #b45309; }
+.pod-2-bar { background: rgba(148,163,184,.15); border-color: #94a3b8; height: 66px; }
+.pod-2-val { color: #475569; }
+.pod-3-bar { background: rgba(205,124,47,.15); border-color: #cd7c2f; height: 52px; }
+.pod-3-val { color: #92400e; }
+
+.lb-row {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 14px 8px; padding: 10px 12px; border-radius: 12px;
+  background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.04);
+}
+.lb-row.me { background: rgba(46,204,113,.06); border: 1px solid rgba(46,204,113,.25); }
+.lb-rank { width: 38px; height: 38px; border-radius: 50%; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #6b7280; flex-shrink: 0; }
+.lb-name { font-size: 14px; font-weight: 700; }
+.lb-sub { font-size: 11px; color: #9ca3af; }
+.you-tag { background: #2ECC71; color: #fff; font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 5px; margin-left: 6px; }
+.lb-right { margin-left: auto; text-align: right; }
+.lb-val { font-size: 14px; font-weight: 800; }
+.lb-pct-up { font-size: 12px; font-weight: 700; color: #2ECC71; }
+.lb-pct-dn { font-size: 12px; font-weight: 700; color: #ef4444; }
+
+/* my contests tab empty */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; }
+.empty-icon { font-size: 52px; margin-bottom: 14px; opacity: .3; }
+.empty-title { font-size: 15px; font-weight: 700; color: #6b7280; text-align: center; }
+.empty-sub { font-size: 13px; color: #9ca3af; text-align: center; margin-top: 4px; }
+.empty-btn { margin-top: 20px; padding: 10px 22px; border-radius: 10px; background: #1B8C4E; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+/* scrollbar */
+.screen::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Beanstalk — Contest Flow</h1>
+<p class="sub">Interactive mockup · click highlighted elements to navigate</p>
+
+<div class="tabs">
+  <button class="tab active" onclick="show('discover')">1 · Discover</button>
+  <button class="tab" onclick="show('my-contests')">2 · My Contests</button>
+  <button class="tab" onclick="show('detail')">3 · Contest Detail</button>
+  <button class="tab" onclick="show('leaderboard')">4 · Leaderboard</button>
+</div>
+
+<div class="phone-wrap">
+  <div class="phone-shell">
+    <div class="phone-inner">
+      <div class="status-bar"><span>9:41</span><span>●●● 〒 ▌▌▌</span></div>
+
+      <!-- ── 1. DISCOVER ───────────────────────────────────── -->
+      <div class="screen active" id="screen-discover">
+        <div class="hero">
+          <div class="hero-eyebrow">🏆 Contests</div>
+          <div class="hero-title">Compete. Win. Earn.</div>
+          <div class="tab-strip">
+            <div class="t-tab active" onclick="show('discover')">Discover</div>
+            <div class="t-tab" onclick="show('my-contests')">My Contests (1)</div>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="chip active">Active</div>
+          <div class="chip">All</div>
+          <div class="chip">Concluded</div>
+          <div style="width:1px;background:#e5e7eb;margin:0 4px"></div>
+          <div class="chip green-active">All Levels</div>
+          <div class="chip">Beginner</div>
+          <div class="chip">Intermediate</div>
+        </div>
+
+        <!-- Card 1 — active -->
+        <div class="c-card" onclick="show('detail')">
+          <div class="c-head">
+            <div style="display:flex;align-items:flex-start">
+              <div style="flex:1">
+                <div class="c-badges">
+                  <div class="badge badge-live"><div class="badge-dot badge-dot-live"></div>Live</div>
+                  <div class="badge badge-beg">BEGINNER</div>
+                </div>
+                <div class="c-name">Spring Stock Showdown</div>
+                <div class="c-desc">Trade your way to the top with a $10K virtual portfolio. Best returns win.</div>
+              </div>
+              <div class="prize-pill" style="margin-left:10px">
+                <span class="prize-emoji">🏆</span>
+                <div class="prize-val">$250</div>
+                <div class="prize-lbl">1st place</div>
+              </div>
+            </div>
+          </div>
+          <div class="c-stats">
+            <div class="c-stat"><div class="c-stat-lbl">Starting Balance</div><div class="c-stat-val">$10K</div></div>
+            <div class="stat-div"></div>
+            <div class="c-stat"><div class="c-stat-lbl">Ends In</div><div class="c-stat-val">12d left</div></div>
+            <div class="stat-div"></div>
+            <div class="c-stat"><div class="c-stat-lbl">Age Groups</div><div class="c-stat-val">HS · College</div></div>
+          </div>
+          <div class="prog-wrap">
+            <div class="prog-row"><span>187 participants</span><span>250 max</span></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:75%"></div></div>
+          </div>
+          <div class="age-chips">
+            <div class="age-chip">High School</div>
+            <div class="age-chip">College</div>
+          </div>
+          <div class="c-actions">
+            <div class="btn-outline" onclick="event.stopPropagation();show('leaderboard')">📊 Leaderboard</div>
+            <div class="btn-fill btn-fill-dark">Join Contest</div>
+          </div>
+        </div>
+
+        <!-- Card 2 — active intermediate -->
+        <div class="c-card" onclick="show('detail')">
+          <div class="c-head">
+            <div style="display:flex;align-items:flex-start">
+              <div style="flex:1">
+                <div class="c-badges">
+                  <div class="badge badge-live"><div class="badge-dot badge-dot-live"></div>Live</div>
+                  <div class="badge badge-int">INTERMEDIATE</div>
+                </div>
+                <div class="c-name">ETF Masters Challenge</div>
+                <div class="c-desc">ETFs and index funds only. Lowest expense-ratio strategy wins.</div>
+              </div>
+              <div class="prize-pill" style="margin-left:10px">
+                <span class="prize-emoji">🎁</span>
+                <div class="prize-val">$100</div>
+                <div class="prize-lbl">1st place</div>
+              </div>
+            </div>
+          </div>
+          <div class="c-stats">
+            <div class="c-stat"><div class="c-stat-lbl">Starting Balance</div><div class="c-stat-val">$25K</div></div>
+            <div class="stat-div"></div>
+            <div class="c-stat"><div class="c-stat-lbl">Ends In</div><div class="c-stat-val">5d left</div></div>
+            <div class="stat-div"></div>
+            <div class="c-stat"><div class="c-stat-lbl">Age Groups</div><div class="c-stat-val">College</div></div>
+          </div>
+          <div class="c-actions">
+            <div class="btn-outline" onclick="event.stopPropagation();show('leaderboard')">📊 Leaderboard</div>
+            <div class="btn-fill btn-fill-dark">Join Contest</div>
+          </div>
+        </div>
+        <div style="height:20px"></div>
+      </div>
+
+      <!-- ── 2. MY CONTESTS ─────────────────────────────────── -->
+      <div class="screen" id="screen-my-contests">
+        <div class="hero">
+          <div class="hero-eyebrow">🏆 Contests</div>
+          <div class="hero-title">Compete. Win. Earn.</div>
+          <div class="tab-strip">
+            <div class="t-tab" onclick="show('discover')">Discover</div>
+            <div class="t-tab active" onclick="show('my-contests')">My Contests (1)</div>
+          </div>
+        </div>
+
+        <div class="c-card" style="margin-top:14px" onclick="show('detail')">
+          <div class="c-head">
+            <div class="c-badges">
+              <div class="badge badge-live"><div class="badge-dot badge-dot-live"></div>Live</div>
+              <div class="badge badge-beg">BEGINNER</div>
+              <div class="badge badge-joined">Joined ✓</div>
+            </div>
+            <div class="c-name">Spring Stock Showdown</div>
+            <div class="c-desc">Trade your way to the top with a $10K virtual portfolio.</div>
+          </div>
+          <div class="c-stats">
+            <div class="c-stat"><div class="c-stat-lbl">Your Rank</div><div class="c-stat-val" style="color:#2ECC71">#4 of 187</div></div>
+            <div class="stat-div"></div>
+            <div class="c-stat"><div class="c-stat-lbl">Your Return</div><div class="c-stat-val" style="color:#2ECC71">+8.4%</div></div>
+            <div class="stat-div"></div>
+            <div class="c-stat"><div class="c-stat-lbl">Ends In</div><div class="c-stat-val">12d left</div></div>
+          </div>
+          <div class="c-actions">
+            <div class="btn-outline" onclick="event.stopPropagation();show('leaderboard')">📊 Leaderboard</div>
+            <div class="btn-fill btn-fill-gold">View My Rank</div>
+          </div>
+        </div>
+        <div style="height:20px"></div>
+      </div>
+
+      <!-- ── 3. DETAIL ──────────────────────────────────────── -->
+      <div class="screen" id="screen-detail">
+        <!-- Gradient header -->
+        <div style="background:linear-gradient(135deg,#1B8C4E,#146038);color:#fff;padding:10px 16px 16px">
+          <div class="ab-row">
+            <div class="ab-back" onclick="show('discover')">←</div>
+            <div style="flex:1;margin-left:6px">
+              <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+                <div class="badge badge-live" style="background:rgba(34,197,94,.2)"><div class="badge-dot" style="background:#16a34a"></div>Live Now</div>
+                <div class="badge badge-beg" style="background:rgba(59,130,246,.2)">BEGINNER</div>
+              </div>
+              <div style="font-size:19px;font-weight:800">Spring Stock Showdown</div>
+              <div style="font-size:12px;opacity:.78;margin-top:3px">Trade your way to the top. Best returns win prizes.</div>
+            </div>
+            <div class="ab-icon" onclick="show('leaderboard')">📊</div>
+          </div>
+        </div>
+
+        <!-- Countdown -->
+        <div class="countdown-bar">
+          <span style="font-size:16px">⏱</span>
+          <span class="cd-label">Contest ends in</span>
+          <div class="cd-units">
+            <div class="cd-unit">12d</div>
+            <div class="cd-unit">04h</div>
+            <div class="cd-unit">22m</div>
+            <div class="cd-unit">08s</div>
+          </div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="qs-row">
+          <div class="qs-item"><div class="qs-icon">💰</div><div class="qs-val">$10K</div><div class="qs-lbl">Starting Balance</div></div>
+          <div class="qs-div"></div>
+          <div class="qs-item"><div class="qs-icon">👥</div><div class="qs-val">HS · College</div><div class="qs-lbl">Age Groups</div></div>
+          <div class="qs-div"></div>
+          <div class="qs-item"><div class="qs-icon">🏆</div><div class="qs-val">$500</div><div class="qs-lbl">Prize Pool</div></div>
+        </div>
+        <div style="padding:6px 14px 0;background:#fff">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;margin-bottom:4px"><span>187 of 250 spots filled</span><span>75% full</span></div>
+          <div class="prog-bar"><div class="prog-fill" style="width:75%"></div></div>
+          <div style="height:12px"></div>
+        </div>
+
+        <!-- Prizes -->
+        <div class="section-card">
+          <div class="sec-title">🏆 PRIZES</div>
+          <div class="prize-row prize-1">
+            <div class="prize-medal">🥇</div>
+            <div><div class="prize-place">1st Place</div><div class="prize-name">Amazon Gift Card</div></div>
+            <div class="prize-amount">$250</div>
+          </div>
+          <div class="prize-row prize-2">
+            <div class="prize-medal">🥈</div>
+            <div><div class="prize-place">2nd Place</div><div class="prize-name">Amazon Gift Card</div></div>
+            <div class="prize-amount">$150</div>
+          </div>
+          <div class="prize-row prize-3">
+            <div class="prize-medal">🥉</div>
+            <div><div class="prize-place">3rd Place</div><div class="prize-name">Amazon Gift Card</div></div>
+            <div class="prize-amount">$100</div>
+          </div>
+        </div>
+
+        <!-- Rules -->
+        <div class="section-card">
+          <div class="sec-title">⚖️ RULES & SETTINGS</div>
+          <div class="rule-row"><div class="rule-icon">💰</div><div><div class="rule-lbl">Starting Balance</div><div class="rule-val">$10,000 virtual cash</div></div></div>
+          <div class="rule-row"><div class="rule-icon">👥</div><div><div class="rule-lbl">Eligible Groups</div><div class="rule-val">High School, College</div></div></div>
+          <div class="rule-row"><div class="rule-icon">📉</div><div><div class="rule-lbl">Short Selling</div><div class="rule-val">Not allowed</div></div></div>
+          <div class="rule-row"><div class="rule-icon">💳</div><div><div class="rule-lbl">Margin Trading</div><div class="rule-val">Not allowed</div></div></div>
+          <div class="rule-row" style="border:none"><div class="rule-icon">🌐</div><div><div class="rule-lbl">Visibility</div><div class="rule-val">Public — anyone can join</div></div></div>
+        </div>
+
+        <div style="height:90px"></div>
+
+        <!-- Bottom bar -->
+        <div class="trade-bar">
+          <div class="btn-outline" onclick="show('leaderboard')" style="flex:1;justify-content:center">📊 Leaderboard</div>
+          <div class="btn-fill btn-fill-dark" style="flex:2;padding:14px 0;border-radius:12px;font-size:15px" onclick="show('discover')">Join Contest</div>
+        </div>
+      </div>
+
+      <!-- ── 4. LEADERBOARD ─────────────────────────────────── -->
+      <div class="screen" id="screen-leaderboard">
+        <div class="lb-header">
+          <div class="ab-row">
+            <div class="ab-back" onclick="show('detail')">←</div>
+            <div style="margin-left:6px">
+              <div style="font-size:11px;opacity:.7;display:flex;align-items:center;gap:4px">📊 Live Rankings</div>
+              <div style="font-size:17px;font-weight:800">Spring Stock Showdown</div>
+            </div>
+          </div>
+          <div class="lb-meta">
+            <div class="lb-meta-item">👥 187 traders</div>
+            <div class="lb-meta-item">⏱ 12d remaining</div>
+            <div class="lb-meta-item">🏆 $500 pool</div>
+          </div>
+          <div class="lb-tabs">
+            <div class="lb-tab active">Overall</div>
+            <div class="lb-tab">High School</div>
+            <div class="lb-tab">College</div>
+          </div>
+        </div>
+
+        <!-- Podium -->
+        <div class="podium">
+          <div class="pod-card">
+            <div style="font-size:22px">🥈</div>
+            <div class="pod-name">@jsmith</div>
+            <div class="pod-pct">+11.2%</div>
+            <div class="pod-bar pod-2-bar"><span class="pod-bar-val pod-2-val">$11.1K</span></div>
+          </div>
+          <div class="pod-card">
+            <div style="font-size:28px">🥇</div>
+            <div class="pod-name">@tradingking</div>
+            <div class="pod-pct">+14.7%</div>
+            <div class="pod-bar pod-1-bar"><span class="pod-bar-val pod-1-val">$11.5K</span></div>
+          </div>
+          <div class="pod-card">
+            <div style="font-size:20px">🥉</div>
+            <div class="pod-name">@bulls2025</div>
+            <div class="pod-pct">+9.8%</div>
+            <div class="pod-bar pod-3-bar"><span class="pod-bar-val pod-3-val">$10.9K</span></div>
+          </div>
+        </div>
+
+        <!-- Rows -->
+        <div class="lb-row" style="margin-top:8px">
+          <div class="lb-rank">🥇</div>
+          <div><div class="lb-name">@tradingking</div><div class="lb-sub">3 positions · High School</div></div>
+          <div class="lb-right"><div class="lb-val">$11,470</div><div class="lb-pct-up">+14.7%</div></div>
+        </div>
+        <div class="lb-row">
+          <div class="lb-rank">🥈</div>
+          <div><div class="lb-name">@jsmith</div><div class="lb-sub">5 positions · College</div></div>
+          <div class="lb-right"><div class="lb-val">$11,120</div><div class="lb-pct-up">+11.2%</div></div>
+        </div>
+        <div class="lb-row">
+          <div class="lb-rank">🥉</div>
+          <div><div class="lb-name">@bulls2025</div><div class="lb-sub">4 positions · College</div></div>
+          <div class="lb-right"><div class="lb-val">$10,980</div><div class="lb-pct-up">+9.8%</div></div>
+        </div>
+        <div class="lb-row me">
+          <div class="lb-rank" style="background:rgba(46,204,113,.12);color:#16a34a">#4</div>
+          <div><div class="lb-name">Mehta<span class="you-tag">You</span></div><div class="lb-sub">2 positions · College</div></div>
+          <div class="lb-right"><div class="lb-val">$10,840</div><div class="lb-pct-up">+8.4%</div></div>
+        </div>
+        <div class="lb-row">
+          <div class="lb-rank">#5</div>
+          <div><div class="lb-name">@nvdabull</div><div class="lb-sub">6 positions · High School</div></div>
+          <div class="lb-right"><div class="lb-val">$10,710</div><div class="lb-pct-up">+7.1%</div></div>
+        </div>
+        <div class="lb-row">
+          <div class="lb-rank">#6</div>
+          <div><div class="lb-name">@safeinvestor</div><div class="lb-sub">2 positions · College</div></div>
+          <div class="lb-right"><div class="lb-val">$10,320</div><div class="lb-pct-up">+3.2%</div></div>
+        </div>
+        <div class="lb-row">
+          <div class="lb-rank">#7</div>
+          <div><div class="lb-name">@cryptokid99</div><div class="lb-sub">8 positions · High School</div></div>
+          <div class="lb-right"><div class="lb-val">$9,880</div><div class="lb-pct-dn">-1.2%</div></div>
+        </div>
+        <div style="height:20px"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function show(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const map = { discover:0, 'my-contests':1, detail:2, leaderboard:3 };
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.tab')[map[name]].classList.add('active');
+
+  // animate countdown
+  if (name === 'detail') startCountdown();
+  else stopCountdown();
+}
+
+let cdInterval = null;
+let cdSeconds = 12*86400 + 4*3600 + 22*60 + 8;
+function startCountdown() {
+  stopCountdown();
+  cdInterval = setInterval(() => {
+    if (cdSeconds <= 0) return;
+    cdSeconds--;
+    const d = Math.floor(cdSeconds/86400);
+    const h = Math.floor((cdSeconds%86400)/3600);
+    const m = Math.floor((cdSeconds%3600)/60);
+    const s = cdSeconds%60;
+    const units = document.querySelectorAll('.cd-unit');
+    if (units.length === 4) {
+      units[0].textContent = d+'d';
+      units[1].textContent = String(h).padStart(2,'0')+'h';
+      units[2].textContent = String(m).padStart(2,'0')+'m';
+      units[3].textContent = String(s).padStart(2,'0')+'s';
+    }
+  }, 1000);
+}
+function stopCountdown() { clearInterval(cdInterval); }
+</script>
+</body>
+</html>
