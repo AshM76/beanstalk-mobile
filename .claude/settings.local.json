@@ -4,7 +4,10 @@
       "Bash(flutter analyze:*)",
       "Bash(flutter build:*)",
       "Bash(ls -la /Users/mehtafam/Documents/Beanstalk/lib/services/*/)",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "Bash(git -C /Users/mehtafam/Documents/Beanstalk log --oneline -3)",
+      "Bash(git -C /Users/mehtafam/Documents/Beanstalk remote -v)",
+      "Bash(git -C /Users/mehtafam/Documents/Beanstalk remote set-url origin https://github.com/AshM76/beanstalk-mobile.git)"
     ]
   }
 }
