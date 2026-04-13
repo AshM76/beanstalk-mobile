@@ -1,8 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import 'stock_search_page.dart';
 import '../../services/portfolio/portfolio_service.dart';
+
+final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
 // ── Mock price-history generator ─────────────────────────────────────────────
 
@@ -118,7 +121,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '\$${displayPrice.toStringAsFixed(2)}',
+                      _currency.format(displayPrice),
                       style: const TextStyle(
                           fontSize: 36, fontWeight: FontWeight.bold),
                     ),
@@ -507,7 +510,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                 // Cash / shares available subtitle
                 Text(
                   isBuy
-                      ? 'Available: \$${_cash.toStringAsFixed(2)}'
+                      ? 'Available: ${_currency.format(_cash)}'
                       : 'You hold: ${_heldShares.toStringAsFixed(_heldShares % 1 == 0 ? 0 : 4)} shares',
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
                 ),
@@ -590,7 +593,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                       children: [
                         const Text('Estimated Total',
                             style: TextStyle(color: Colors.grey)),
-                        Text('\$${total.toStringAsFixed(2)}',
+                        Text(_currency.format(total),
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
@@ -641,7 +644,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                             borderRadius: BorderRadius.circular(14)),
                       ),
                       child: Text(
-                        '${isBuy ? 'Buy' : 'Sell'} $shares share${shares > 1 ? 's' : ''} · \$${total.toStringAsFixed(2)}',
+                        '${isBuy ? 'Buy' : 'Sell'} $shares share${shares > 1 ? 's' : ''} · ${_currency.format(total)}',
                         style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.bold),
                       ),

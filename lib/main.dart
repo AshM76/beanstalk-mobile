@@ -500,50 +500,54 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _cashTipCard() {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFA5D6A7), width: 1),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Cash thinking illustration
-          Padding(
-            padding: const EdgeInsets.only(left: 8, bottom: 0),
+          // Cash avatar — circle container so full face is always visible
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: Color(0xFFE8F5E9),
+              shape: BoxShape.circle,
+            ),
+            clipBehavior: Clip.hardEdge,
             child: SvgPicture.asset(
               'assets/images/cash/cash_thinking.svg',
-              height: 60,
-              width: 60,
+              fit: BoxFit.cover,
             ),
           ),
+          const SizedBox(width: 12),
           // Tip content
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 12, 16, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text("Cash's Daily Tip",
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2E7D32))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    CashTips.getDailyTip(),
-                    style: const TextStyle(
-                        fontSize: 13, height: 1.5, color: Colors.black87),
-                  ),
-                ],
-              ),
+                  child: const Text("Cash's Daily Tip",
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32))),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  CashTips.getDailyTip(),
+                  style: const TextStyle(
+                      fontSize: 13, height: 1.5, color: Colors.black87),
+                ),
+              ],
             ),
           ),
         ],

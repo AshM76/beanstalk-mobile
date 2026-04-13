@@ -302,108 +302,127 @@ class _GroupCard extends StatelessWidget {
     final ret = group.weeklyTopReturn;
     final retPositive = ret >= 0;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 6, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 6, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Emoji avatar
-            Container(
-              width: 52, height: 52,
-              decoration: const BoxDecoration(
-                  color: _kAccent, shape: BoxShape.circle),
-              child: Center(
-                child: Text(group.emoji,
-                    style: const TextStyle(fontSize: 26)),
-              ),
-            ),
-            const SizedBox(width: 14),
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Emoji avatar
+                Container(
+                  width: 52, height: 52,
+                  decoration: const BoxDecoration(
+                      color: _kAccent, shape: BoxShape.circle),
+                  child: Center(
+                    child: Text(group.emoji,
+                        style: const TextStyle(fontSize: 26)),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                // Info — Expanded so it never pushes the button off screen
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(group.name,
-                            style: const TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w700)),
-                      ),
-                      if (!group.isPublic)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(6),
+                      // Name row (+ optional Private badge)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(group.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w700)),
                           ),
-                          child: Text('Private',
+                          if (!group.isPublic) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text('Private',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey.shade600)),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      // Member count — full line
+                      Row(
+                        children: [
+                          Icon(Icons.people_outline, size: 13,
+                              color: Colors.grey.shade500),
+                          const SizedBox(width: 4),
+                          Text('${_fmtNum(group.memberCount)} members',
                               style: TextStyle(
-                                  fontSize: 10, color: Colors.grey.shade600)),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.people_outline, size: 13,
-                          color: Colors.grey.shade500),
-                      const SizedBox(width: 3),
-                      Text('${_fmtNum(group.memberCount)} members',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade600)),
-                      const SizedBox(width: 12),
-                      Icon(Icons.trending_up_rounded, size: 13,
-                          color: retPositive ? _kGreen : Colors.red),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${retPositive ? '+' : ''}${ret.toStringAsFixed(1)}% leader',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: retPositive ? _kGreen : Colors.red,
-                            fontWeight: FontWeight.w600),
+                                  fontSize: 12, color: Colors.grey.shade600)),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      // Leader return — full line below
+                      Row(
+                        children: [
+                          Icon(Icons.trending_up_rounded, size: 13,
+                              color: retPositive ? _kGreen : Colors.red),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${retPositive ? '+' : ''}${ret.toStringAsFixed(1)}% top return this week',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: retPositive ? _kGreen : Colors.red,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Join / Leave button
-            GestureDetector(
-              onTap: onJoinToggle,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: isJoined ? Colors.white : _kGreen,
-                  borderRadius: BorderRadius.circular(20),
-                  border: isJoined
-                      ? Border.all(color: Colors.grey.shade300)
-                      : null,
                 ),
-                child: Text(
-                  isJoined ? 'Leave' : 'Join',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: isJoined ? Colors.grey.shade600 : Colors.white,
+                const SizedBox(width: 12),
+                // Join / Leave button — isolated so it doesn't interfere with card tap
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onJoinToggle,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isJoined ? Colors.white : _kGreen,
+                      borderRadius: BorderRadius.circular(20),
+                      border: isJoined
+                          ? Border.all(color: Colors.grey.shade300)
+                          : null,
+                    ),
+                    child: Text(
+                      isJoined ? 'Leave' : 'Join',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isJoined ? Colors.grey.shade600 : Colors.white,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

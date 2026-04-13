@@ -7,7 +7,21 @@
       "Bash(gh repo:*)",
       "Bash(git -C /Users/mehtafam/Documents/Beanstalk log --oneline -3)",
       "Bash(git -C /Users/mehtafam/Documents/Beanstalk remote -v)",
-      "Bash(git -C /Users/mehtafam/Documents/Beanstalk remote set-url origin https://github.com/AshM76/beanstalk-mobile.git)"
+      "Bash(git -C /Users/mehtafam/Documents/Beanstalk remote set-url origin https://github.com/AshM76/beanstalk-mobile.git)",
+      "Bash(grep -n \"= 0\\\\|= \\\\\"\\\\\"\" /Users/mehtafam/Documents/Beanstalk/lib/pages/**/*.dart)",
+      "Bash(grep -n '\\\\${\\\\|toStringAsFixed\\\\|\\\\$\\\\$' /Users/mehtafam/Documents/Beanstalk/lib/pages/stocks/stock_detail_page.dart)",
+      "Bash(grep -n '\\\\${\\\\|toStringAsFixed\\\\|fmtCash\\\\|portfolioValue' /Users/mehtafam/Documents/Beanstalk/lib/pages/contests/contests_page.dart)",
+      "Bash(grep -n 'formattedPrice\\\\|toStringAsFixed\\\\|\\\\$\\\\$' /Users/mehtafam/Documents/Beanstalk/lib/pages/stocks/stock_search_page.dart)",
+      "Bash(grep -n 'portfolioValue\\\\|fmtCash\\\\|\\\\$\\\\${' /Users/mehtafam/Documents/Beanstalk/lib/pages/contests/contests_page.dart)",
+      "Bash(python3 -c \"from PIL import Image, ImageDraw, ImageFont; print\\('PIL OK'\\)\")",
+      "Bash(convert --version)",
+      "Bash(python3)",
+      "Bash(flutter pub:*)",
+      "Bash(dart run:*)",
+      "Bash(python3 -c \"from PIL import Image; i=Image.open\\('/Users/mehtafam/Documents/Beanstalk/assets/icon/icon.png'\\); print\\(f'icon.png: {i.size} {i.mode}'\\)\")",
+      "Bash(firebase --version)",
+      "Bash(firebase login:*)",
+      "Bash(firebase projects:list)"
     ]
   }
 }

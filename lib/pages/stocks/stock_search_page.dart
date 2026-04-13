@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'stock_detail_page.dart';
+
+final _stockCurrency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
 // ── Stock Model ──────────────────────────────────────────────────────────────
 
@@ -21,7 +24,7 @@ class StockItem {
   double get changeAmount => price * changePercent / 100;
   bool get isPositive => changePercent >= 0;
 
-  String get formattedPrice => '\$${price.toStringAsFixed(2)}';
+  String get formattedPrice => _stockCurrency.format(price);
   String get formattedChange =>
       '${isPositive ? '+' : ''}${changePercent.toStringAsFixed(2)}%';
 }

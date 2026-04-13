@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification/notification_service.dart';
+
+final _contestCurrency = NumberFormat('#,##0', 'en_US');
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
@@ -1050,7 +1053,7 @@ class _DetailsTab extends StatelessWidget {
                                 fontWeight: FontWeight.bold, fontSize: 18)),
                         Text(
                           '+${contest.leaderboard.first.returnPercent.toStringAsFixed(1)}% return  '
-                          '·  \$${contest.leaderboard.first.portfolioValue.toStringAsFixed(0)}',
+                          '·  \$${_contestCurrency.format(contest.leaderboard.first.portfolioValue)}',
                           style: const TextStyle(color: Colors.black54, fontSize: 13),
                         ),
                       ],
@@ -1378,7 +1381,7 @@ class _LeaderRow extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     fontSize: 14),
               ),
-              Text('\$${entry.portfolioValue.toStringAsFixed(0)}',
+              Text('\$${_contestCurrency.format(entry.portfolioValue)}',
                   style: const TextStyle(color: Colors.grey, fontSize: 11)),
             ],
           ),

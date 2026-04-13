@@ -283,26 +283,17 @@ class _NotifTileState extends State<_NotifTile> {
                             ],
                           ),
                           const SizedBox(height: 4),
-                          // Body — truncated unless expanded
-                          AnimatedCrossFade(
+                          // Body — always shows 2-line preview; expands to full on tap
+                          AnimatedSize(
                             duration: const Duration(milliseconds: 200),
-                            crossFadeState: _expanded
-                                ? CrossFadeState.showSecond
-                                : CrossFadeState.showFirst,
-                            firstChild: Text(
+                            curve: Curves.easeInOut,
+                            alignment: Alignment.topCenter,
+                            child: Text(
                               n.body,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: isUnread
-                                    ? const Color(0xFF444444)
-                                    : Colors.grey.shade600,
-                                height: 1.4,
-                              ),
-                            ),
-                            secondChild: Text(
-                              n.body,
+                              maxLines: _expanded ? null : 2,
+                              overflow: _expanded
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 13,
                                 color: isUnread

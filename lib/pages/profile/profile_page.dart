@@ -87,7 +87,7 @@ class ProfilePageState extends State<ProfilePage> {
     _Badge(emoji: '🌱', title: 'First Steps',  description: 'Complete 1 lesson',    earned: _lessonsCompleted >= 1),
     _Badge(emoji: '📚', title: 'Bookworm',     description: 'Complete 5 lessons',   earned: _lessonsCompleted >= 5),
     _Badge(emoji: '🎓', title: 'Graduate',     description: 'Complete 10 lessons',  earned: _lessonsCompleted >= 10),
-    _Badge(emoji: '🏆', title: 'Master',       description: 'Complete all 18',      earned: _lessonsCompleted >= 18),
+    _Badge(emoji: '🏆', title: 'Master',       description: 'Complete all 26',      earned: _lessonsCompleted >= 26),
     _Badge(emoji: '⭐', title: 'XP Hunter',    description: 'Earn 500 XP',          earned: _totalXp >= 500),
     _Badge(emoji: '💎', title: 'Diamond',      description: 'Earn 1,000 XP',        earned: _totalXp >= 1000),
     _Badge(emoji: '🚀', title: 'Rocket',       description: 'Reach Level 3',        earned: _level >= 3),
@@ -239,7 +239,7 @@ class ProfilePageState extends State<ProfilePage> {
 
   Widget _buildStatsGrid() {
     final cards = [
-      _statCard('Lessons Done', '$_lessonsCompleted / 18', Icons.school_rounded),
+      _statCard('Lessons Done', '$_lessonsCompleted / 26', Icons.school_rounded),
       _statCard('Contests',     '$_contestsJoined',        Icons.emoji_events_rounded),
       _statCard('Total Trades', '$_totalTrades',           Icons.bar_chart_rounded),
       _statCard('Win Rate',
