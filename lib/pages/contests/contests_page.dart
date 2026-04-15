@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification/notification_service.dart';
+import '../../services/api/api_service.dart';
+import '../stocks/stock_search_page.dart';
 
 final _contestCurrency = NumberFormat('#,##0', 'en_US');
 
@@ -73,6 +75,81 @@ class Contest {
     if (r.inHours > 0) return '${r.inHours}h left';
     return '${r.inMinutes}m left';
   }
+
+  /// Build a Contest from a backend payload (see src/controllers/contest.controller.js).
+  /// Backend status values: 'draft' | 'active' | 'concluded' | 'cancelled'.
+  ///   draft    → upcoming
+  ///   active   → active
+  ///   concluded/cancelled → ended
+  /// UI-only fields (leaderboard, emoji, color, rules) are filled with safe
+  /// defaults; they're populated by later endpoints (leaderboard, sponsors)
+  /// when those land.
+  factory Contest.fromApi(Map<String, dynamic> m) {
+    DateTime parseDt(Object? v, {DateTime? fallback}) {
+      if (v is String && v.isNotEmpty) {
+        return DateTime.tryParse(v) ?? (fallback ?? DateTime.now());
+      }
+      if (v is Map && v['value'] is String) {
+        return DateTime.tryParse(v['value'] as String) ?? (fallback ?? DateTime.now());
+      }
+      return fallback ?? DateTime.now();
+    }
+
+    int parseInt(Object? v, int fallback) {
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? fallback;
+      return fallback;
+    }
+
+    double parseDouble(Object? v, double fallback) {
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v) ?? fallback;
+      return fallback;
+    }
+
+    final rawStatus = (m['status'] as String?) ?? 'draft';
+    final status = switch (rawStatus) {
+      'active' => ContestStatus.active,
+      'concluded' || 'cancelled' => ContestStatus.ended,
+      _ => ContestStatus.upcoming,
+    };
+
+    // Build a readable prize string from the prizes[] array (first prize).
+    final prizes = (m['prizes'] as List?) ?? const [];
+    String prize = '—';
+    if (prizes.isNotEmpty && prizes.first is Map) {
+      final p = (prizes.first as Map).cast<String, dynamic>();
+      prize = (p['prize_value'] as String?) ??
+          (p['prize_description'] as String?) ??
+          '—';
+    }
+
+    // Deterministic accent color per contest so the UI stays stable across
+    // refreshes; picks from the existing palette.
+    const palette = [_kGreen, _kBlue, _kPurple];
+    final id = (m['contest_id'] as String?) ?? '';
+    final color = palette[id.hashCode.abs() % palette.length];
+
+    return Contest(
+      id: id,
+      title: (m['name'] as String?) ?? 'Contest',
+      description: (m['description'] as String?) ?? '',
+      prize: prize,
+      baseParticipants: parseInt(m['current_participants'], 0),
+      maxParticipants: parseInt(m['max_participants'], 100),
+      startDate: parseDt(m['start_date']),
+      endDate: parseDt(m['end_date'], fallback: DateTime.now().add(const Duration(days: 30))),
+      status: status,
+      leaderboard: const [], // populated by future leaderboard endpoint
+      emoji: '🏆',
+      rules: ((m['rules'] as String?) ?? '')
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .toList(),
+      color: color,
+      startingCash: parseDouble(m['starting_balance'], 10000).toInt(),
+    );
+  }
 }
 
 class LeaderboardEntry {
@@ -119,147 +196,6 @@ class ChatMessage {
   );
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-final _now = DateTime.now();
-
-final kContests = [
-  Contest(
-    id: 'c1', emoji: '🌱', color: _kGreen,
-    title: 'Spring Trading Cup',
-    description: 'Start with \$10,000 in virtual cash and build the highest-returning portfolio over 30 days. Trade stocks, ETFs, and more to climb the leaderboard.',
-    prize: '\$500 Gift Card',
-    baseParticipants: 842, maxParticipants: 1000,
-    startDate: _now.subtract(const Duration(days: 8)),
-    endDate:   _now.add(const Duration(days: 22)),
-    status: ContestStatus.active,
-    startingCash: 10000,
-    sponsorName: 'Robinhood',
-    sponsorTagline: 'Presented by Robinhood',
-    rules: [
-      'Start with \$10,000 in virtual cash',
-      'Trade any available stocks during the contest period',
-      'Rankings are based on portfolio return percentage',
-      'No short-selling allowed in this contest',
-      'One account per participant — no duplicate entries',
-      'Results are final at the contest end time',
-    ],
-    leaderboard: [
-      LeaderboardEntry(rank: 1,  username: 'TradeMaster99',  avatarEmoji: '🦅', returnPercent: 18.4, portfolioValue: 11840),
-      LeaderboardEntry(rank: 2,  username: 'BullRunner',     avatarEmoji: '🐂', returnPercent: 14.7, portfolioValue: 11470),
-      LeaderboardEntry(rank: 3,  username: 'GrowthHacker',   avatarEmoji: '🚀', returnPercent: 12.1, portfolioValue: 11210),
-      LeaderboardEntry(rank: 4,  username: 'You',            avatarEmoji: '🌱', returnPercent:  7.3, portfolioValue: 10730, isCurrentUser: true),
-      LeaderboardEntry(rank: 5,  username: 'DivQueen',       avatarEmoji: '👑', returnPercent:  6.8, portfolioValue: 10680),
-      LeaderboardEntry(rank: 6,  username: 'ValueVictor',    avatarEmoji: '🎯', returnPercent:  5.2, portfolioValue: 10520),
-      LeaderboardEntry(rank: 7,  username: 'StockSage',      avatarEmoji: '🦉', returnPercent:  4.1, portfolioValue: 10410),
-      LeaderboardEntry(rank: 8,  username: 'NightTrader',    avatarEmoji: '🌙', returnPercent:  2.9, portfolioValue: 10290),
-      LeaderboardEntry(rank: 9,  username: 'EarlyBird',      avatarEmoji: '🐦', returnPercent:  1.8, portfolioValue: 10180),
-      LeaderboardEntry(rank: 10, username: 'PatienceIsKey',  avatarEmoji: '⏳', returnPercent:  0.7, portfolioValue: 10070),
-    ],
-  ),
-  Contest(
-    id: 'c2', emoji: '💻', color: _kBlue,
-    title: 'Tech Sector Showdown',
-    description: 'Trade only technology stocks for 2 weeks. Who can pick the best tech winners? Focus on semiconductors, software, and AI plays.',
-    prize: '\$200 + Trophy Badge',
-    baseParticipants: 394, maxParticipants: 500,
-    startDate: _now.subtract(const Duration(days: 2)),
-    endDate:   _now.add(const Duration(days: 12)),
-    status: ContestStatus.active,
-    startingCash: 10000,
-    rules: [
-      'Start with \$10,000 in virtual cash',
-      'Only technology sector stocks are permitted',
-      'Minimum 3 trades must be made during the contest',
-      'Rankings are based on total portfolio return %',
-      'Ineligible: shorting, crypto, and non-tech ETFs',
-      'Results finalized 1 hour after market close on end date',
-    ],
-    leaderboard: [
-      LeaderboardEntry(rank: 1,  username: 'ChipWhisperer',  avatarEmoji: '🔬', returnPercent: 22.1, portfolioValue: 12210),
-      LeaderboardEntry(rank: 2,  username: 'NvidiaFan',      avatarEmoji: '⚡', returnPercent: 19.5, portfolioValue: 11950),
-      LeaderboardEntry(rank: 3,  username: 'You',            avatarEmoji: '🌱', returnPercent:  9.8, portfolioValue: 10980, isCurrentUser: true),
-      LeaderboardEntry(rank: 4,  username: 'BigTechBull',    avatarEmoji: '🐃', returnPercent:  8.3, portfolioValue: 10830),
-      LeaderboardEntry(rank: 5,  username: 'ByteTrader',     avatarEmoji: '💾', returnPercent:  6.7, portfolioValue: 10670),
-      LeaderboardEntry(rank: 6,  username: 'CloudCatcher',   avatarEmoji: '☁️', returnPercent:  5.1, portfolioValue: 10510),
-      LeaderboardEntry(rank: 7,  username: 'AIInvestor',     avatarEmoji: '🤖', returnPercent:  3.9, portfolioValue: 10390),
-      LeaderboardEntry(rank: 8,  username: 'MooreTrader',    avatarEmoji: '💡', returnPercent:  2.4, portfolioValue: 10240),
-      LeaderboardEntry(rank: 9,  username: 'SaaSTitan',      avatarEmoji: '📦', returnPercent:  1.2, portfolioValue: 10120),
-      LeaderboardEntry(rank: 10, username: 'BootstrapKing',  avatarEmoji: '👟', returnPercent: -0.4, portfolioValue:  9960),
-    ],
-  ),
-  Contest(
-    id: 'c3', emoji: '🪙', color: _kPurple,
-    title: 'Crypto Challenge',
-    description: 'Virtual crypto trading contest. Start with \$5,000 and maximise gains across BTC, ETH, and altcoins over 14 days.',
-    prize: '\$150 + Crypto Badge',
-    baseParticipants: 12, maxParticipants: 200,
-    startDate: _now.add(const Duration(days: 3)),
-    endDate:   _now.add(const Duration(days: 17)),
-    status: ContestStatus.upcoming,
-    startingCash: 5000,
-    rules: [
-      'Start with \$5,000 in virtual crypto cash',
-      'Trade BTC, ETH, SOL, and top 20 altcoins',
-      'No leverage or margin trading',
-      'Portfolio value calculated at market prices',
-      'Rankings determined by % return from starting balance',
-      'All trades must be placed before the end date',
-    ],
-    leaderboard: [],
-  ),
-  Contest(
-    id: 'c5', emoji: '📊', color: _kGreen,
-    title: 'ETF Index Challenge',
-    description: 'Build the best ETF portfolio over 3 weeks. Only index funds and sector ETFs allowed — show us your asset allocation skills.',
-    prize: '\$100 Amazon Voucher',
-    baseParticipants: 0, maxParticipants: 300,
-    startDate: _now.add(const Duration(days: 10)),
-    endDate:   _now.add(const Duration(days: 31)),
-    status: ContestStatus.upcoming,
-    startingCash: 50000,
-    sponsorName: 'Fidelity',
-    sponsorTagline: 'Presented by Fidelity',
-    rules: [
-      'Start with \$10,000 in virtual cash',
-      'Only ETFs and index funds permitted (no individual stocks)',
-      'Minimum 4 different ETFs in portfolio',
-      'Rebalancing allowed twice per week',
-      'Winner determined by Sharpe Ratio, not raw return',
-      'Ties broken by lowest volatility portfolio',
-    ],
-    leaderboard: [],
-  ),
-  Contest(
-    id: 'c4', emoji: '🏆', color: Colors.blueGrey,
-    title: 'March Madness Markets',
-    description: 'The completed 30-day challenge where top traders battled for supremacy. Huge returns were made as markets surged.',
-    prize: '\$250 Gift Card (awarded)',
-    baseParticipants: 1247, maxParticipants: 1500,
-    startDate: _now.subtract(const Duration(days: 45)),
-    endDate:   _now.subtract(const Duration(days: 15)),
-    status: ContestStatus.ended,
-    rules: [
-      'Start with \$10,000 in virtual cash',
-      'Trade any available stocks during the contest period',
-      'Rankings based on portfolio return percentage',
-      'One account per participant',
-      'Results finalized at market close on end date',
-    ],
-    leaderboard: [
-      LeaderboardEntry(rank: 1,  username: 'AlphaAlpha',   avatarEmoji: '🦁', returnPercent: 31.2, portfolioValue: 13120),
-      LeaderboardEntry(rank: 2,  username: 'BetaBull',     avatarEmoji: '🐂', returnPercent: 28.7, portfolioValue: 12870),
-      LeaderboardEntry(rank: 3,  username: 'GammaTrade',   avatarEmoji: '⚡', returnPercent: 24.5, portfolioValue: 12450),
-      LeaderboardEntry(rank: 4,  username: 'You',          avatarEmoji: '🌱', returnPercent: 11.3, portfolioValue: 11130, isCurrentUser: true),
-      LeaderboardEntry(rank: 5,  username: 'SteadyEddie',  avatarEmoji: '🐢', returnPercent:  9.8, portfolioValue: 10980),
-      LeaderboardEntry(rank: 6,  username: 'LongHaul',     avatarEmoji: '🚂', returnPercent:  8.1, portfolioValue: 10810),
-      LeaderboardEntry(rank: 7,  username: 'QuickFlip',    avatarEmoji: '🎲', returnPercent:  6.4, portfolioValue: 10640),
-      LeaderboardEntry(rank: 8,  username: 'MomoTrader',   avatarEmoji: '🎯', returnPercent:  4.9, portfolioValue: 10490),
-      LeaderboardEntry(rank: 9,  username: 'IndexFred',    avatarEmoji: '📊', returnPercent:  3.2, portfolioValue: 10320),
-      LeaderboardEntry(rank: 10, username: 'HoldForever',  avatarEmoji: '🏔️', returnPercent:  1.7, portfolioValue: 10170),
-    ],
-  ),
-];
 
 // ── SharedPreferences helpers ─────────────────────────────────────────────────
 
@@ -280,7 +216,18 @@ class _ContestsPageState extends State<ContestsPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
 
-  // Persisted state
+  // Remote contest list (populated by GET /api/contests).
+  List<Contest> _contests = const [];
+  bool _loadError = false;
+  String? _loadErrorMessage;
+
+  // Client-side state.
+  //   _joined       — set of contest_ids the user has joined (backend source of truth;
+  //                   SharedPreferences holds a cache so the detail page's existing
+  //                   reads of 'contest_joined_<id>' continue to work).
+  //   _notified     — local-only reminder flags (no backend equivalent yet).
+  //   _participants — per-contest participant count, updated from API responses and
+  //                   optimistically bumped on a successful join.
   final Set<String> _joined   = {};
   final Set<String> _notified = {};
   final Map<String, int> _participants = {};
@@ -300,53 +247,117 @@ class _ContestsPageState extends State<ContestsPage>
   }
 
   Future<void> _loadState() async {
-    final p = await SharedPreferences.getInstance();
-    final joined   = <String>{};
-    final notified = <String>{};
-    final parts    = <String, int>{};
-    for (final c in kContests) {
-      if (p.getBool(_joinKey(c.id)) == true)   joined.add(c.id);
-      if (p.getBool(_notifyKey(c.id)) == true) notified.add(c.id);
-      parts[c.id] = p.getInt(_partKey(c.id)) ?? c.baseParticipants;
+    final api = ApiService();
+    final r = await api.getContests();
+
+    if (!r.isOk) {
+      if (!mounted) return;
+      setState(() {
+        _loaded = true;
+        _loadError = true;
+        _loadErrorMessage = r.error;
+      });
+      return;
     }
+
+    final contests = r.data!
+        .map((m) {
+          try {
+            return Contest.fromApi(m);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<Contest>()
+        .toList();
+
+    // Reconstruct client-side caches from SharedPreferences (only for notify
+    // flags — join state gets hydrated from the contests list below).
+    final p = await SharedPreferences.getInstance();
+    final notified = <String>{};
+    final joined   = <String>{};
+    final parts    = <String, int>{};
+    for (final c in contests) {
+      if (p.getBool(_notifyKey(c.id)) == true) notified.add(c.id);
+      if (p.getBool(_joinKey(c.id)) == true)   joined.add(c.id);
+      parts[c.id] = c.baseParticipants; // current_participants from the API
+    }
+
     if (!mounted) return;
     setState(() {
-      _joined.addAll(joined);
-      _notified.addAll(notified);
-      _participants.addAll(parts);
+      _contests = contests;
+      _joined
+        ..clear()
+        ..addAll(joined);
+      _notified
+        ..clear()
+        ..addAll(notified);
+      _participants
+        ..clear()
+        ..addAll(parts);
       _loaded = true;
+      _loadError = false;
+      _loadErrorMessage = null;
     });
   }
 
   Future<void> _join(Contest c) async {
-    final p       = await SharedPreferences.getInstance();
-    final joining = !_joined.contains(c.id);
-    if (joining) {
-      await p.setBool(_joinKey(c.id), true);
-      final current = _participants[c.id] ?? c.baseParticipants;
-      await p.setInt(_partKey(c.id), current + 1);
-      await NotificationService.addForContestJoin(c.title);
-      if (!mounted) return;
-      setState(() {
-        _joined.add(c.id);
-        _participants[c.id] = current + 1;
-      });
+    // The backend has no "leave" endpoint yet and contest joins carry a real
+    // portfolio side-effect, so this is a one-way operation. If already
+    // joined, no-op.
+    if (_joined.contains(c.id)) return;
+
+    // Age group is required by POST /api/contests/:id/join. Onboarding stores
+    // the display label (e.g. 'High School', 'Young Professional') under
+    // 'profile_age_group'; the backend expects its snake_case enum
+    // ('high_school' | 'college' | 'adults'). Translate here, and fall back to
+    // 'adults' when the user never completed onboarding or stored an unknown
+    // value — 'adults' is the most permissive bucket and is always in a
+    // contest's age_groups by default.
+    final prefs = await SharedPreferences.getInstance();
+    final storedAge = prefs.getString('profile_age_group') ?? '';
+    final ageGroup = switch (storedAge) {
+      'High School'         => 'high_school',
+      'College'             => 'college',
+      'Young Professional'  => 'adults',
+      'Adult'               => 'adults',
+      _                     => 'adults',
+    };
+
+    final api = ApiService();
+    final r = await api.joinContest(api.currentUserId, c.id, ageGroup: ageGroup);
+    if (!mounted) return;
+
+    if (!r.isOk) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Joined "${c.title}"! Good luck 🌱'),
-        backgroundColor: _kGreen,
+        content: Text('Could not join: ${r.error ?? "unknown error"}'),
+        backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ));
-    } else {
-      await p.setBool(_joinKey(c.id), false);
-      final current = _participants[c.id] ?? c.baseParticipants;
-      await p.setInt(_partKey(c.id), (current - 1).clamp(0, c.maxParticipants));
-      if (!mounted) return;
-      setState(() {
-        _joined.remove(c.id);
-        _participants[c.id] = (current - 1).clamp(0, c.maxParticipants);
-      });
+      return;
     }
+
+    // The backend's joinContest handler creates an isolated contest portfolio
+    // via portfolioService.createPortfolio('contest', contestId), so no
+    // second API call is needed here. Update local cache + UI state.
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_joinKey(c.id), true);
+    final current = _participants[c.id] ?? c.baseParticipants;
+    await p.setInt(_partKey(c.id), current + 1);
+    await NotificationService.addForContestJoin(c.title);
+
+    if (!mounted) return;
+    setState(() {
+      _joined.add(c.id);
+      _participants[c.id] = current + 1;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Joined "${c.title}"! Good luck 🌱'),
+      backgroundColor: _kGreen,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
   }
 
   Future<void> _toggleNotify(Contest c) async {
@@ -384,7 +395,7 @@ class _ContestsPageState extends State<ContestsPage>
   }
 
   List<Contest> _byStatus(ContestStatus s) =>
-      kContests.where((c) => c.status == s).toList();
+      _contests.where((c) => c.status == s).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -392,6 +403,45 @@ class _ContestsPageState extends State<ContestsPage>
       return const Scaffold(
         backgroundColor: Color(0xFFF5F5F5),
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_loadError) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F5F5),
+        appBar: AppBar(
+          backgroundColor: _kGreen,
+          foregroundColor: Colors.white,
+          title: const Text('Contests',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+                const SizedBox(height: 12),
+                Text(
+                  'Could not load contests\n${_loadErrorMessage ?? ""}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black54),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _loaded = false;
+                      _loadError = false;
+                    });
+                    _loadState();
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
     return Scaffold(
@@ -916,6 +966,30 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           _ChatTab(contestId: c.id, color: _color),
         ],
       ),
+      // "Trade Stocks" FAB only shows when the user has joined AND the
+      // contest is active. Trading in an upcoming contest makes no sense
+      // (market hasn't opened for it); trading in an ended contest is a
+      // backend 4xx.
+      floatingActionButton: (_joined && c.status == ContestStatus.active)
+          ? FloatingActionButton.extended(
+              backgroundColor: _color,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.trending_up),
+              label: const Text('Trade Stocks',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StockSearchPage(
+                      contestId: c.id,
+                      contestName: c.title,
+                    ),
+                  ),
+                );
+              },
+            )
+          : null,
       bottomNavigationBar: _buildBottomBar(),
     );
   }

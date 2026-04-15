@@ -1,6 +1,19 @@
-import 'dart:convert';
+// lib/services/portfolio/portfolio_service.dart
+//
+// Backend-backed portfolio service. Replaces the previous SharedPreferences
+// implementation: cash balance, holdings, buys and sells now round-trip
+// through the Beanstalk API. SharedPreferences is still used for *local
+// preferences* (notification flags), never for portfolio state.
+//
+// Callers have not changed — load() / buy() / sell() keep their signatures.
+// buy() and sell() gained an optional contestId parameter so trades can be
+// routed to the right portfolio; when omitted, the user's main portfolio is
+// used (matching the backend's default).
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../api/api_service.dart';
 import '../notification/notification_service.dart';
 
 // ── Models ────────────────────────────────────────────────────────────────────
@@ -25,73 +38,97 @@ class Holding {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 class PortfolioService {
-  static const _cashKey     = 'portfolio_cash';
-  static const _holdingsKey = 'portfolio_holdings';
-  static const _startCash   = 10000.0;
+  // Local-only flag: has the user ever made a trade? (drives first-trade
+  // notification — pure UI concern, no portfolio state.)
+  static const _firstTradeKey = 'first_trade_done';
+
+  static ApiService get _api => ApiService();
 
   /// Load cash balance and all holdings.
-  static Future<({double cash, Map<String, Holding> holdings})> load() async {
-    final p           = await SharedPreferences.getInstance();
-    // NOTE: do NOT call p.reload() — on iOS it races against NSUserDefaults
-    // async disk sync and can return stale data even after a fresh write.
-    final cash        = p.getDouble(_cashKey) ?? _startCash;
-    final holdingsRaw = p.getString(_holdingsKey);
-    final holdings    = _parseHoldings(holdingsRaw);
-    debugPrint('[Portfolio.load] cash=$cash  keys=${holdings.keys.toList()}  raw=$holdingsRaw');
+  ///
+  /// [contestId] — when non-null, returns the user's portfolio for that
+  /// contest instead of their main portfolio. Both paths hit
+  /// GET /api/portfolio/:userId (with or without the contest_id query
+  /// parameter) and return a uniform response shape.
+  ///
+  /// On network failure we fall back to an empty portfolio with the starting
+  /// $10,000 so the UI stays usable offline; errors are logged via debugPrint.
+  static Future<({double cash, Map<String, Holding> holdings})> load({
+    String? contestId,
+  }) async {
+    final userId = _api.currentUserId;
+
+    final r = contestId == null
+        ? await _api.getMainPortfolio(userId)
+        : await _api.getContestPortfolio(userId, contestId);
+
+    if (!r.isOk) {
+      debugPrint('[Portfolio.load] API error: ${r.error} — falling back to empty');
+      return (cash: 10000.0, holdings: <String, Holding>{});
+    }
+
+    final data = r.data!;
+    final cash = _num(data['current_balance']) ?? _num(data['starting_balance']) ?? 10000.0;
+    final positions = (data['positions'] as List?) ?? const [];
+
+    final holdings = <String, Holding>{};
+    for (final raw in positions) {
+      if (raw is! Map) continue;
+      final m = raw.cast<String, dynamic>();
+      final symbol = (m['symbol'] as String?) ?? '';
+      if (symbol.isEmpty) continue;
+      final qty = _num(m['quantity']) ?? 0.0;
+      if (qty <= 0) continue;
+      holdings[symbol] = Holding(
+        symbol: symbol,
+        // Backend stores symbol only; caller resolves display name from its
+        // local stock catalog when needed.
+        name: (m['name'] as String?) ?? symbol,
+        quantity: qty,
+        avgCost: _num(m['purchase_price']) ?? 0.0,
+      );
+    }
+
+    debugPrint(
+      '[Portfolio.load] cash=$cash  keys=${holdings.keys.toList()}  '
+      'contest=${contestId ?? "main"}',
+    );
     return (cash: cash, holdings: holdings);
   }
 
   /// Buy shares. Returns null on success, error string on failure.
+  ///
+  /// [contestId] — when non-null, the trade runs against the user's contest
+  /// portfolio for that contest rather than their main portfolio.
   static Future<String?> buy({
     required String symbol,
-    required String name,
+    required String name, // kept for signature compat; backend ignores
     required double price,
     required int quantity,
+    String? contestId,
   }) async {
-    final p    = await SharedPreferences.getInstance();
-    final cash = p.getDouble(_cashKey) ?? _startCash;
-    final cost = price * quantity;
-    debugPrint('[Portfolio.buy] START  symbol=$symbol qty=$quantity price=$price cash=$cash cost=$cost');
+    debugPrint(
+      '[Portfolio.buy] START  symbol=$symbol qty=$quantity price=$price '
+      'contest=${contestId ?? "main"}',
+    );
 
-    if (cost > cash) {
-      debugPrint('[Portfolio.buy] FAIL insufficient funds');
-      return 'Insufficient funds';
+    final userId = _api.currentUserId;
+    final r = await _api.executeTrade(
+      userId: userId,
+      symbol: symbol,
+      action: 'buy',
+      quantity: quantity,
+      price: price,
+      contestId: contestId,
+    );
+
+    if (!r.isOk) {
+      debugPrint('[Portfolio.buy] FAIL ${r.statusCode} ${r.error}');
+      return r.error ?? 'Trade failed';
     }
 
-    final newCash = cash - cost;
-    final cashOk = await p.setDouble(_cashKey, newCash);
-    debugPrint('[Portfolio.buy] setDouble cash=$newCash  ok=$cashOk');
-
-    final raw = _parseRaw(p.getString(_holdingsKey));
-    if (raw.containsKey(symbol)) {
-      final prev    = raw[symbol]!;
-      final prevQty = (prev['qty'] as num).toDouble();
-      final prevAvg = (prev['avg'] as num).toDouble();
-      final newQty  = prevQty + quantity;
-      raw[symbol]   = {
-        'name': name,
-        'qty':  newQty,
-        'avg':  (prevQty * prevAvg + cost) / newQty,
-      };
-    } else {
-      raw[symbol] = {'name': name, 'qty': quantity.toDouble(), 'avg': price};
-    }
-
-    final encoded  = jsonEncode(raw);
-    final stringOk = await p.setString(_holdingsKey, encoded);
-    debugPrint('[Portfolio.buy] setString ok=$stringOk  saved=$encoded');
-
-    // Verify the write immediately
-    final verify = p.getString(_holdingsKey);
-    debugPrint('[Portfolio.buy] VERIFY read-back=$verify');
-
-    // Fire first-trade notification once
-    final firstTradeDone = p.getBool('first_trade_done') ?? false;
-    if (!firstTradeDone) {
-      await p.setBool('first_trade_done', true);
-      await NotificationService.addForFirstTrade(symbol);
-    }
-
+    debugPrint('[Portfolio.buy] OK  response=${r.data}');
+    await _maybeFireFirstTradeNotification(symbol);
     return null;
   }
 
@@ -100,54 +137,46 @@ class PortfolioService {
     required String symbol,
     required double price,
     required int quantity,
+    String? contestId,
   }) async {
-    final p   = await SharedPreferences.getInstance();
-    final raw = _parseRaw(p.getString(_holdingsKey));
-    if (!raw.containsKey(symbol)) return 'No shares held';
+    debugPrint(
+      '[Portfolio.sell] START  symbol=$symbol qty=$quantity price=$price '
+      'contest=${contestId ?? "main"}',
+    );
 
-    final prev    = raw[symbol]!;
-    final prevQty = (prev['qty'] as num).toDouble();
-    if (quantity > prevQty) return 'Not enough shares';
+    final userId = _api.currentUserId;
+    final r = await _api.executeTrade(
+      userId: userId,
+      symbol: symbol,
+      action: 'sell',
+      quantity: quantity,
+      price: price,
+      contestId: contestId,
+    );
 
-    final cash = p.getDouble(_cashKey) ?? _startCash;
-    await p.setDouble(_cashKey, cash + price * quantity);
-
-    final newQty = prevQty - quantity;
-    if (newQty < 0.0001) {
-      raw.remove(symbol);
-    } else {
-      raw[symbol] = {...prev, 'qty': newQty};
+    if (!r.isOk) {
+      debugPrint('[Portfolio.sell] FAIL ${r.statusCode} ${r.error}');
+      return r.error ?? 'Trade failed';
     }
-    await p.setString(_holdingsKey, jsonEncode(raw));
-    debugPrint('[Portfolio.sell] sold $quantity x $symbol');
+
+    debugPrint('[Portfolio.sell] OK  response=${r.data}');
     return null;
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  static Map<String, Map<String, dynamic>> _parseRaw(String? json) {
-    if (json == null || json.isEmpty) return {};
-    try {
-      final decoded = jsonDecode(json);
-      if (decoded is! Map) return {};
-      return decoded.map(
-        (k, v) => MapEntry(k as String, Map<String, dynamic>.from(v as Map)),
-      );
-    } catch (e) {
-      debugPrint('[Portfolio._parseRaw] JSON parse error: $e  input=$json');
-      return {};
-    }
+  static Future<void> _maybeFireFirstTradeNotification(String symbol) async {
+    final p = await SharedPreferences.getInstance();
+    final done = p.getBool(_firstTradeKey) ?? false;
+    if (done) return;
+    await p.setBool(_firstTradeKey, true);
+    await NotificationService.addForFirstTrade(symbol);
   }
 
-  static Map<String, Holding> _parseHoldings(String? json) {
-    return _parseRaw(json).map((k, v) => MapEntry(
-          k,
-          Holding(
-            symbol:   k,
-            name:     v['name'] as String? ?? k,
-            quantity: (v['qty'] as num).toDouble(),
-            avgCost:  (v['avg'] as num).toDouble(),
-          ),
-        ));
+  static double? _num(Object? v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v);
+    return null;
   }
 }

@@ -10,9 +10,11 @@ import 'pages/profile/profile_page.dart';
 import 'pages/onboarding/onboarding_flow.dart';
 import 'pages/notifications/notifications_page.dart';
 import 'pages/groups/groups_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'services/portfolio/portfolio_service.dart';
 import 'services/notification/notification_service.dart';
 import 'services/group/group_service.dart';
+import 'services/api/api_service.dart';
 import 'data/cash_tips.dart';
 
 void main() async {
@@ -20,6 +22,9 @@ void main() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+  // Load/persist the device-scoped userId + any cached JWT before any
+  // service touches the API.
+  await ApiService().init();
   runApp(const BeanstalkApp());
 }
 
@@ -182,6 +187,15 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
+/// Lightweight descriptor used by the dashboard's portfolio switcher.
+/// `id` is null for the main portfolio, or a contest_id for a contest.
+class _PortfolioChoice {
+  final String? id;
+  final String label;
+  const _PortfolioChoice({required this.id, required this.label});
+  bool get isMain => id == null;
+}
+
 class _DashboardPageState extends State<DashboardPage> {
   static const _featured = ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'SPY'];
   static final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
@@ -192,16 +206,76 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, Holding> _holdings = {};
   int _unreadNotifs = 0;
 
+  // Portfolio switcher state.
+  //   _choices      — always starts with the Main portfolio, then one entry
+  //                   per contest the user has joined (read from the
+  //                   SharedPreferences cache maintained by contests_page).
+  //   _selectedIdx  — index into _choices; 0 = main.
+  List<_PortfolioChoice> _choices = const [_PortfolioChoice(id: null, label: 'My Portfolio')];
+  int _selectedIdx = 0;
+
+  _PortfolioChoice get _selected => _choices[_selectedIdx];
+
   @override
   void initState() {
     super.initState();
-    _loadPortfolio();
+    _loadChoicesAndPortfolio();
     _loadUnreadCount();
   }
 
   Future<void> reload() async {
-    await _loadPortfolio();
+    await _loadChoicesAndPortfolio();
     await _loadUnreadCount();
+  }
+
+  /// Rebuild the portfolio switcher from scratch (picks up newly-joined
+  /// contests) and then reload whichever portfolio is currently selected.
+  /// Preserves the user's selection across reloads when possible.
+  Future<void> _loadChoicesAndPortfolio() async {
+    final api = ApiService();
+    final prefs = await SharedPreferences.getInstance();
+
+    final previouslySelectedId = (_choices.isNotEmpty) ? _selected.id : null;
+
+    final choices = <_PortfolioChoice>[
+      const _PortfolioChoice(id: null, label: 'My Portfolio'),
+    ];
+
+    // Fetch contests once and filter to those the user has joined. The
+    // SharedPreferences `contest_joined_<id>` flag is written by
+    // contests_page when a join succeeds, so it's the fastest way to derive
+    // "my contests" without a dedicated backend endpoint.
+    final contestsRes = await api.getContests();
+    if (contestsRes.isOk) {
+      for (final c in contestsRes.data!) {
+        final id = c['contest_id'] as String?;
+        final name = (c['name'] as String?) ?? 'Contest';
+        if (id == null) continue;
+        if (prefs.getBool('contest_joined_$id') == true) {
+          choices.add(_PortfolioChoice(id: id, label: name));
+        }
+      }
+    }
+
+    // Preserve selection if the same contest is still present.
+    var nextIdx = 0;
+    if (previouslySelectedId != null) {
+      final i = choices.indexWhere((c) => c.id == previouslySelectedId);
+      if (i != -1) nextIdx = i;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _choices = choices;
+      _selectedIdx = nextIdx;
+    });
+    await _loadPortfolio();
+  }
+
+  void _selectPortfolio(int idx) {
+    if (idx == _selectedIdx) return;
+    setState(() => _selectedIdx = idx);
+    _loadPortfolio();
   }
 
   Future<void> _loadUnreadCount() async {
@@ -220,8 +294,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadPortfolio() async {
-    debugPrint('[Dashboard._loadPortfolio] called  mounted=$mounted');
-    final data = await PortfolioService.load();
+    final contestId = _selected.id;
+    debugPrint('[Dashboard._loadPortfolio] called  mounted=$mounted  contest=${contestId ?? "main"}');
+    final data = await PortfolioService.load(contestId: contestId);
     if (!mounted) {
       debugPrint('[Dashboard._loadPortfolio] BAILED — not mounted');
       return;
@@ -300,10 +375,47 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadPortfolio,
+        onRefresh: _loadChoicesAndPortfolio,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Portfolio switcher — only shown once the user has joined at
+            // least one contest (otherwise the single "My Portfolio" chip
+            // is redundant).
+            if (_choices.length > 1) ...[
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _choices.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (ctx, i) {
+                    final c = _choices[i];
+                    final selected = i == _selectedIdx;
+                    return ChoiceChip(
+                      label: Text(c.label),
+                      selected: selected,
+                      avatar: Icon(
+                        c.isMain ? Icons.account_balance_wallet : Icons.emoji_events,
+                        size: 16,
+                        color: selected ? Colors.white : const Color(0xFF2E7D32),
+                      ),
+                      selectedColor: const Color(0xFF2E7D32),
+                      backgroundColor: Colors.white,
+                      labelStyle: TextStyle(
+                        color: selected ? Colors.white : Colors.black87,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      side: BorderSide(
+                        color: selected ? const Color(0xFF2E7D32) : Colors.grey.shade300,
+                      ),
+                      onSelected: (_) => _selectPortfolio(i),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             // Portfolio card
             Container(
               padding: const EdgeInsets.all(24),
@@ -316,8 +428,12 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Portfolio Value',
-                      style: TextStyle(color: Colors.white70, fontSize: 14)),
+                  Text(
+                    _selected.isMain
+                        ? 'Portfolio Value'
+                        : '${_selected.label} · Portfolio Value',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     _currency.format(_totalValue),

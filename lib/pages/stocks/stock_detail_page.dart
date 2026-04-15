@@ -27,7 +27,19 @@ const _ranges = ['1D', '1W', '1M', '3M', '1Y'];
 
 class StockDetailPage extends StatefulWidget {
   final StockItem stock;
-  const StockDetailPage({super.key, required this.stock});
+
+  /// If non-null, trades from this page are routed to the user's portfolio
+  /// for this contest instead of their main portfolio. [contestName] is used
+  /// only for the "Trading in: …" banner at the top.
+  final String? contestId;
+  final String? contestName;
+
+  const StockDetailPage({
+    super.key,
+    required this.stock,
+    this.contestId,
+    this.contestName,
+  });
   @override
   State<StockDetailPage> createState() => _StockDetailPageState();
 }
@@ -48,7 +60,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
   }
 
   Future<void> _loadPortfolio() async {
-    final data = await PortfolioService.load();
+    final data = await PortfolioService.load(contestId: widget.contestId);
     if (!mounted) return;
     setState(() {
       _cash       = data.cash;
@@ -110,6 +122,29 @@ class _StockDetailPageState extends State<StockDetailPage> {
       ),
       body: ListView(
         children: [
+          // ── Contest banner ────────────────────────────────────────────────
+          if (widget.contestId != null)
+            Container(
+              width: double.infinity,
+              color: const Color(0xFFFFF3E0),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.emoji_events, color: Color(0xFFE65100), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Trading in: ${widget.contestName ?? "Contest"}',
+                      style: const TextStyle(
+                        color: Color(0xFFE65100),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // ── Price header ──────────────────────────────────────────────────
           Container(
             color: Colors.white,
@@ -609,15 +644,17 @@ class _StockDetailPageState extends State<StockDetailPage> {
                         Navigator.pop(ctx);
                         final err = isBuy
                             ? await PortfolioService.buy(
-                                symbol:   s.symbol,
-                                name:     s.name,
-                                price:    s.price,
-                                quantity: shares,
+                                symbol:    s.symbol,
+                                name:      s.name,
+                                price:     s.price,
+                                quantity:  shares,
+                                contestId: widget.contestId,
                               )
                             : await PortfolioService.sell(
-                                symbol:   s.symbol,
-                                price:    s.price,
-                                quantity: shares,
+                                symbol:    s.symbol,
+                                price:     s.price,
+                                quantity:  shares,
+                                contestId: widget.contestId,
                               );
                         if (!mounted) return;
                         if (err != null) {

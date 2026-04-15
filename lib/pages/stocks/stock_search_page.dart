@@ -57,7 +57,12 @@ const _popularSymbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY', 'AMZN', 'META', 
 // ── Stock Search Page ────────────────────────────────────────────────────────
 
 class StockSearchPage extends StatefulWidget {
-  const StockSearchPage({super.key});
+  /// If non-null, any stock selected here opens its detail page with this
+  /// contest context applied so trades route to the contest portfolio.
+  final String? contestId;
+  final String? contestName;
+
+  const StockSearchPage({super.key, this.contestId, this.contestName});
   @override
   State<StockSearchPage> createState() => _StockSearchPageState();
 }
@@ -87,8 +92,16 @@ class _StockSearchPageState extends State<StockSearchPage> {
       kAllStocks.where((s) => _popularSymbols.contains(s.symbol)).toList();
 
   void _openDetail(StockItem stock) {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => StockDetailPage(stock: stock)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StockDetailPage(
+          stock: stock,
+          contestId: widget.contestId,
+          contestName: widget.contestName,
+        ),
+      ),
+    );
   }
 
   @override
