@@ -92,6 +92,11 @@ class _StockSearchPageState extends State<StockSearchPage> {
       kAllStocks.where((s) => _popularSymbols.contains(s.symbol)).toList();
 
   void _openDetail(StockItem stock) {
+    debugPrint(
+      '[StockSearchPage] _openDetail symbol=${stock.symbol} '
+      'contestId=${widget.contestId ?? "<null>"} '
+      'contestName=${widget.contestName ?? "<null>"}',
+    );
     Navigator.push(
       context,
       MaterialPageRoute(

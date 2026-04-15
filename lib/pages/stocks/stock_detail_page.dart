@@ -2,8 +2,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'stock_search_page.dart';
 import '../../services/portfolio/portfolio_service.dart';
+import '../../services/api/api_service.dart';
+import '../../utils/contest_color.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
@@ -51,21 +54,86 @@ class _StockDetailPageState extends State<StockDetailPage> {
   double _cash       = 10000;
   double _heldShares = 0;
 
+  // Portfolio selector state. `_choices` always starts with the main portfolio
+  // (id=null); joined contests are appended from SharedPreferences +
+  // `/api/contests`. `_activeContestId` is the one trades will route to —
+  // initialised to the incoming widget.contestId so contest deep-links still
+  // default to the contest portfolio, then mutated by the chip row.
+  List<_PortfolioChoice> _choices = const [
+    _PortfolioChoice(id: null, label: 'My Portfolio'),
+  ];
+  String? _activeContestId;
+
   StockItem get s => widget.stock;
 
   @override
   void initState() {
     super.initState();
-    _loadPortfolio();
+    _activeContestId = widget.contestId;
+    // Bug-fix confirmation: when opened from a contest, contestId must be
+    // non-null here. Logged in debug builds only.
+    debugPrint(
+      '[StockDetailPage] open  symbol=${widget.stock.symbol} '
+      'contestId=${widget.contestId ?? "<null>"} '
+      'contestName=${widget.contestName ?? "<null>"}',
+    );
+    _loadChoicesAndPortfolio();
+  }
+
+  /// Build the portfolio picker (main + joined contests) and then load the
+  /// initially-selected portfolio. Mirrors the home-screen switcher in
+  /// main.dart so the two stay consistent.
+  Future<void> _loadChoicesAndPortfolio() async {
+    final choices = <_PortfolioChoice>[
+      const _PortfolioChoice(id: null, label: 'My Portfolio'),
+    ];
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final contestsRes = await ApiService().getContests();
+      if (contestsRes.isOk && contestsRes.data != null) {
+        for (final c in contestsRes.data!) {
+          final id = c['contest_id'] as String?;
+          final name = (c['name'] as String?) ?? 'Contest';
+          if (id == null) continue;
+          if (prefs.getBool('contest_joined_$id') == true) {
+            choices.add(_PortfolioChoice(id: id, label: name));
+          }
+        }
+      }
+
+      // If the caller passed a contestId we haven't seen in prefs (edge
+      // case: prefs flag missing but user is mid-contest), make sure it's
+      // still selectable rather than silently falling back to main.
+      if (widget.contestId != null &&
+          !choices.any((c) => c.id == widget.contestId)) {
+        choices.add(_PortfolioChoice(
+          id: widget.contestId,
+          label: widget.contestName ?? 'Contest',
+        ));
+      }
+    } catch (e) {
+      debugPrint('[StockDetailPage] _loadChoicesAndPortfolio failed: $e');
+    }
+
+    if (!mounted) return;
+    setState(() => _choices = choices);
+    await _loadPortfolio();
   }
 
   Future<void> _loadPortfolio() async {
-    final data = await PortfolioService.load(contestId: widget.contestId);
+    final data = await PortfolioService.load(contestId: _activeContestId);
     if (!mounted) return;
     setState(() {
       _cash       = data.cash;
       _heldShares = data.holdings[s.symbol]?.quantity ?? 0;
     });
+  }
+
+  void _selectPortfolio(String? contestId) {
+    if (contestId == _activeContestId) return;
+    setState(() => _activeContestId = contestId);
+    _loadPortfolio();
   }
 
   Map<String, (int points, double vol)> get _rangeConfig => const {
@@ -387,8 +455,57 @@ class _StockDetailPageState extends State<StockDetailPage> {
       // ── Trade Button ───────────────────────────────────────────────────────
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-        decoration: const BoxDecoration(color: Colors.white),
-        child: Row(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0x14000000))),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Portfolio picker — lets the user explicitly choose which
+            // portfolio the next trade will hit. Only rendered when the user
+            // has more than one choice (main + joined contests); otherwise
+            // it's just visual noise.
+            if (_choices.length > 1) ...[
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _choices.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final choice = _choices[i];
+                    final selected = choice.id == _activeContestId;
+                    // Accent follows the contest across screens; main
+                    // portfolio stays green.
+                    final accent = contestColorFor(choice.id);
+                    return ChoiceChip(
+                      label: Text(
+                        choice.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      selected: selected,
+                      onSelected: (_) => _selectPortfolio(choice.id),
+                      selectedColor: accent,
+                      backgroundColor: const Color(0xFFF0F0F0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide.none,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      showCheckmark: false,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            Row(
           children: [
             Expanded(
               child: SizedBox(
@@ -426,6 +543,8 @@ class _StockDetailPageState extends State<StockDetailPage> {
                 ),
               ),
             ),
+          ],
+        ),
           ],
         ),
       ),
@@ -648,13 +767,13 @@ class _StockDetailPageState extends State<StockDetailPage> {
                                 name:      s.name,
                                 price:     s.price,
                                 quantity:  shares,
-                                contestId: widget.contestId,
+                                contestId: _activeContestId,
                               )
                             : await PortfolioService.sell(
                                 symbol:    s.symbol,
                                 price:     s.price,
                                 quantity:  shares,
-                                contestId: widget.contestId,
+                                contestId: _activeContestId,
                               );
                         if (!mounted) return;
                         if (err != null) {
@@ -731,4 +850,12 @@ class _SectorChip extends StatelessWidget {
         child: Text(sector,
             style: const TextStyle(fontSize: 12, color: Colors.black54)),
       );
+}
+
+/// A single entry in the portfolio picker.
+/// [id] is the contest_id, or null for the user's main portfolio.
+class _PortfolioChoice {
+  final String? id;
+  final String label;
+  const _PortfolioChoice({required this.id, required this.label});
 }

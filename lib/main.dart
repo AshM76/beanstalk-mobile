@@ -15,6 +15,7 @@ import 'services/portfolio/portfolio_service.dart';
 import 'services/notification/notification_service.dart';
 import 'services/group/group_service.dart';
 import 'services/api/api_service.dart';
+import 'utils/contest_color.dart';
 import 'data/cash_tips.dart';
 
 void main() async {
@@ -392,22 +393,26 @@ class _DashboardPageState extends State<DashboardPage> {
                   itemBuilder: (ctx, i) {
                     final c = _choices[i];
                     final selected = i == _selectedIdx;
+                    // Per-contest accent so the chip visually matches the
+                    // contest's card on the contests page and the picker on
+                    // stock detail. Main portfolio falls back to green.
+                    final accent = contestColorFor(c.id);
                     return ChoiceChip(
                       label: Text(c.label),
                       selected: selected,
                       avatar: Icon(
                         c.isMain ? Icons.account_balance_wallet : Icons.emoji_events,
                         size: 16,
-                        color: selected ? Colors.white : const Color(0xFF2E7D32),
+                        color: selected ? Colors.white : accent,
                       ),
-                      selectedColor: const Color(0xFF2E7D32),
+                      selectedColor: accent,
                       backgroundColor: Colors.white,
                       labelStyle: TextStyle(
                         color: selected ? Colors.white : Colors.black87,
                         fontWeight: FontWeight.w600,
                       ),
                       side: BorderSide(
-                        color: selected ? const Color(0xFF2E7D32) : Colors.grey.shade300,
+                        color: selected ? accent : Colors.grey.shade300,
                       ),
                       onSelected: (_) => _selectPortfolio(i),
                     );

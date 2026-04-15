@@ -6,15 +6,17 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
+import '../../utils/contest_color.dart';
 import '../stocks/stock_search_page.dart';
 
 final _contestCurrency = NumberFormat('#,##0', 'en_US');
 
 // ── Palette ───────────────────────────────────────────────────────────────────
+// Re-export the shared contest palette under the local aliases this file has
+// historically used so the rest of the file (and the Contest.fromApi mapping
+// below) stays untouched.
 
-const _kGreen  = Color(0xFF2E7D32);
-const _kBlue   = Color(0xFF1565C0);
-const _kPurple = Color(0xFF6A1B9A);
+const _kGreen = kContestGreen;
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
@@ -125,10 +127,11 @@ class Contest {
     }
 
     // Deterministic accent color per contest so the UI stays stable across
-    // refreshes; picks from the existing palette.
-    const palette = [_kGreen, _kBlue, _kPurple];
+    // refreshes. Shared with the dashboard switcher and stock-detail picker
+    // via utils/contest_color.dart so the same hue follows the contest
+    // everywhere it's surfaced.
     final id = (m['contest_id'] as String?) ?? '';
-    final color = palette[id.hashCode.abs() % palette.length];
+    final color = contestColorFor(id);
 
     return Contest(
       id: id,
@@ -978,6 +981,10 @@ class _ContestDetailPageState extends State<ContestDetailPage>
               label: const Text('Trade Stocks',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               onPressed: () {
+                debugPrint(
+                  '[ContestDetail] TradeStocks FAB '
+                  'contestId=${c.id} contestName=${c.title}',
+                );
                 Navigator.push(
                   context,
                   MaterialPageRoute(
