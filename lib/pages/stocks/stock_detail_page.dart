@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'stock_search_page.dart';
 import '../../services/portfolio/portfolio_service.dart';
 import '../../services/api/api_service.dart';
+import '../../services/market/market_service.dart';
 import '../../utils/contest_color.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
@@ -54,6 +55,16 @@ class _StockDetailPageState extends State<StockDetailPage> {
   double _cash       = 10000;
   double _heldShares = 0;
 
+  // Live price from /api/market/price/:symbol. null until the first fetch
+  // completes (or if the fetch fails). Used by the price header, the chart
+  // current-value line, the trade sheet "Available / Estimated Total", and
+  // — most importantly — as the price we send to the backend for a trade,
+  // since in test mode the backend trusts the client's price.
+  double? _livePrice;
+
+  // Effective price used everywhere that previously read `s.price`.
+  double get _effectivePrice => _livePrice ?? s.price;
+
   // Portfolio selector state. `_choices` always starts with the main portfolio
   // (id=null); joined contests are appended from SharedPreferences +
   // `/api/contests`. `_activeContestId` is the one trades will route to —
@@ -70,14 +81,20 @@ class _StockDetailPageState extends State<StockDetailPage> {
   void initState() {
     super.initState();
     _activeContestId = widget.contestId;
-    // Bug-fix confirmation: when opened from a contest, contestId must be
-    // non-null here. Logged in debug builds only.
     debugPrint(
       '[StockDetailPage] open  symbol=${widget.stock.symbol} '
       'contestId=${widget.contestId ?? "<null>"} '
       'contestName=${widget.contestName ?? "<null>"}',
     );
     _loadChoicesAndPortfolio();
+    _loadLivePrice();
+  }
+
+  Future<void> _loadLivePrice() async {
+    final p = await MarketService.getPrice(s.symbol);
+    if (!mounted || p == null) return;
+    setState(() => _livePrice = p);
+    debugPrint('[StockDetailPage] live price ${s.symbol}=$p');
   }
 
   /// Build the portfolio picker (main + joined contests) and then load the
@@ -146,7 +163,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
 
   List<double> get _prices {
     final cfg = _rangeConfig[_range]!;
-    return _generateHistory(s.price, cfg.$1, cfg.$2);
+    return _generateHistory(_effectivePrice, cfg.$1, cfg.$2);
   }
 
   Color get _accentColor =>
@@ -163,7 +180,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
         .map((e) => FlSpot(e.key.toDouble(), e.value))
         .toList();
 
-    final displayPrice = _touchedPrice ?? s.price;
+    final displayPrice = _touchedPrice ?? _effectivePrice;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -243,7 +260,13 @@ class _StockDetailPageState extends State<StockDetailPage> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '${s.isPositive ? '+' : ''}\$${s.changeAmount.abs().toStringAsFixed(2)}  '
+                        // Scale the catalog's mock intraday % against the
+                        // effective price so the dollar amount is coherent
+                        // with what we're displaying, even after a live
+                        // price comes in. (Alpaca's getLatestBar doesn't
+                        // give an intraday delta — hooking that up is a
+                        // separate task.)
+                        '${s.isPositive ? '+' : ''}\$${(_effectivePrice * s.changePercent / 100).abs().toStringAsFixed(2)}  '
                         '(${s.formattedChange})',
                         style: TextStyle(
                             color: _accentColor,
@@ -553,11 +576,11 @@ class _StockDetailPageState extends State<StockDetailPage> {
 
   Widget _metricsGrid(StockItem s) {
     // Derive plausible mock values from the price
-    final rand = Random(s.price.hashCode + 1);
-    final high52 = s.price * (1 + 0.15 + rand.nextDouble() * 0.25);
-    final low52 = s.price * (0.65 + rand.nextDouble() * 0.2);
+    final rand = Random(_effectivePrice.hashCode + 1);
+    final high52 = _effectivePrice * (1 + 0.15 + rand.nextDouble() * 0.25);
+    final low52 = _effectivePrice * (0.65 + rand.nextDouble() * 0.2);
     final pe = 15 + rand.nextDouble() * 40;
-    final marketCap = s.price * (1e8 + rand.nextDouble() * 1e10);
+    final marketCap = _effectivePrice * (1e8 + rand.nextDouble() * 1e10);
     final volume = (5e6 + rand.nextDouble() * 5e7).round();
 
     String fmtCap(double v) {
@@ -621,7 +644,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
 
     // Max shares user can buy (by cash) or sell (by holdings)
     int maxShares() => isBuy
-        ? (_cash / s.price).floor()
+        ? (_cash / _effectivePrice).floor()
         : _heldShares.floor();
 
     showModalBottomSheet(
@@ -632,7 +655,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final total    = shares * s.price;
+          final total    = shares * _effectivePrice;
           final limit    = maxShares();
           final canTrade = limit >= 1;
 
@@ -765,13 +788,13 @@ class _StockDetailPageState extends State<StockDetailPage> {
                             ? await PortfolioService.buy(
                                 symbol:    s.symbol,
                                 name:      s.name,
-                                price:     s.price,
+                                price:     _effectivePrice,
                                 quantity:  shares,
                                 contestId: _activeContestId,
                               )
                             : await PortfolioService.sell(
                                 symbol:    s.symbol,
-                                price:     s.price,
+                                price:     _effectivePrice,
                                 quantity:  shares,
                                 contestId: _activeContestId,
                               );

@@ -15,6 +15,7 @@ import 'services/portfolio/portfolio_service.dart';
 import 'services/notification/notification_service.dart';
 import 'services/group/group_service.dart';
 import 'services/api/api_service.dart';
+import 'services/market/market_service.dart';
 import 'utils/contest_color.dart';
 import 'data/cash_tips.dart';
 
@@ -207,6 +208,11 @@ class _DashboardPageState extends State<DashboardPage> {
   Map<String, Holding> _holdings = {};
   int _unreadNotifs = 0;
 
+  // Live prices keyed by symbol, populated from MarketService on every
+  // portfolio reload. Anything not in this map falls back to the catalog
+  // price in kAllStocks (stale) or the holding's avg cost as a last resort.
+  Map<String, double> _livePrices = const {};
+
   // Portfolio switcher state.
   //   _choices      — always starts with the Main portfolio, then one entry
   //                   per contest the user has joined (read from the
@@ -305,15 +311,36 @@ class _DashboardPageState extends State<DashboardPage> {
 
     debugPrint('[Dashboard._loadPortfolio] cash=${data.cash}  holdingsCount=${data.holdings.length}  keys=${data.holdings.keys.toList()}');
 
+    // Fetch live prices for every symbol we're about to render: all holdings
+    // (for valuations and today's gain) and the featured row (for Market
+    // Today). Batched into a single backend call.
+    final neededSymbols = <String>{
+      ...data.holdings.keys,
+      ..._featured,
+    }.toList();
+    final livePrices = await MarketService.getPrices(neededSymbols);
+    if (!mounted) return;
+
     double holdingsValue = 0;
     double todayGain     = 0;
     for (final holding in data.holdings.values) {
-      final stock = kAllStocks.where((s) => s.symbol == holding.symbol).firstOrNull;
-      debugPrint('[Dashboard._loadPortfolio]   → ${holding.symbol} qty=${holding.quantity}  stockFound=${stock != null}');
-      if (stock != null) {
-        holdingsValue += holding.quantity * stock.price;
-        todayGain     += holding.quantity * stock.changeAmount;
+      final live = livePrices[holding.symbol];
+      final catalog = kAllStocks
+          .where((s) => s.symbol == holding.symbol)
+          .firstOrNull;
+      final price = live ?? catalog?.price ?? holding.avgCost;
+      holdingsValue += holding.quantity * price;
+      // Today's gain still relies on the catalog's mock changePercent (we
+      // don't have an intraday delta from Alpaca here). When a live price
+      // is present, scale the catalog's percentage against it so the
+      // number at least moves with the real price.
+      if (catalog != null) {
+        todayGain += holding.quantity * (price * catalog.changePercent / 100);
       }
+      debugPrint(
+        '[Dashboard._loadPortfolio]   → ${holding.symbol} '
+        'qty=${holding.quantity} live=${live ?? "<miss>"} price=$price',
+      );
     }
 
     setState(() {
@@ -321,6 +348,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _holdings      = data.holdings;
       _holdingsValue = holdingsValue;
       _todayGain     = todayGain;
+      _livePrices    = livePrices;
     });
     debugPrint('[Dashboard._loadPortfolio] setState done  _holdings.length=${_holdings.length}');
   }
@@ -492,7 +520,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 final stock = kAllStocks
                     .where((s) => s.symbol == h.symbol)
                     .firstOrNull;
-                final price = stock?.price ?? h.avgCost;
+                // Prefer live Alpaca price; fall back to catalog then avg
+                // cost so the row still renders if the network is down.
+                final price = _livePrices[h.symbol] ?? stock?.price ?? h.avgCost;
                 final value = h.quantity * price;
                 final gain  = h.unrealizedGain(price);
                 final pos   = gain >= 0;
@@ -519,7 +549,20 @@ class _DashboardPageState extends State<DashboardPage> {
             ..._featured.map((sym) {
               final stock = kAllStocks.where((s) => s.symbol == sym).firstOrNull;
               if (stock == null) return const SizedBox.shrink();
-              return _stockRow(context, stock);
+              // Overlay the live price on top of the static catalog entry
+              // so symbol/name/sector/changePercent still come from the
+              // catalog (we have no intraday % from Alpaca here yet).
+              final live = _livePrices[sym];
+              final effective = live == null
+                  ? stock
+                  : StockItem(
+                      symbol: stock.symbol,
+                      name: stock.name,
+                      price: live,
+                      changePercent: stock.changePercent,
+                      sector: stock.sector,
+                    );
+              return _stockRow(context, effective);
             }),
           ],
         ),

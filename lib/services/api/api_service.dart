@@ -230,6 +230,44 @@ class ApiService {
     return ApiResult.ok((r.data as Map).cast<String, dynamic>());
   }
 
+  // ── Market data endpoints (Alpaca-backed) ───────────────────────────────
+
+  /// GET /api/market/price/:symbol → latest Alpaca price for one symbol.
+  /// Returns `{ok, symbol, price, timestamp}`.
+  Future<ApiResult<Map<String, dynamic>>> getMarketPrice(String symbol) async {
+    final r = await _get('/api/market/price/${symbol.toUpperCase()}');
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    return ApiResult.ok((r.data as Map).cast<String, dynamic>());
+  }
+
+  /// POST /api/market/prices → batch fetch. Returns `{ok, prices:[{symbol,price,timestamp}]}`.
+  /// Preferred over N individual calls when loading the dashboard.
+  Future<ApiResult<List<Map<String, dynamic>>>> getMarketPrices(
+    List<String> symbols,
+  ) async {
+    if (symbols.isEmpty) return const ApiResult.ok(<Map<String, dynamic>>[]);
+    final r = await _post('/api/market/prices', {
+      'symbols': symbols.map((s) => s.toUpperCase()).toList(),
+    });
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    final prices = ((r.data as Map)['prices'] as List?) ?? const [];
+    return ApiResult.ok(
+      prices.whereType<Map>().map((m) => m.cast<String, dynamic>()).toList(),
+    );
+  }
+
+  /// GET /api/market/search?q=:query → Alpaca full-universe symbol/name
+  /// search. Returns `{ok, results:[{symbol,name,exchange,...}]}`.
+  Future<ApiResult<List<Map<String, dynamic>>>> searchMarket(String query) async {
+    if (query.isEmpty) return const ApiResult.ok([]);
+    final r = await _get('/api/market/search', query: {'q': query});
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    final results = ((r.data as Map)['results'] as List?) ?? const [];
+    return ApiResult.ok(
+      results.whereType<Map>().map((m) => m.cast<String, dynamic>()).toList(),
+    );
+  }
+
   // ── Contest endpoints ────────────────────────────────────────────────────
 
   /// GET /api/contests

@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'stock_detail_page.dart';
+import '../../services/api/api_service.dart';
+import '../../services/market/market_service.dart';
 
 final _stockCurrency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
@@ -71,13 +74,51 @@ class _StockSearchPageState extends State<StockSearchPage> {
   final _controller = TextEditingController();
   String _query = '';
 
+  // Live Alpaca prices keyed by symbol.
+  Map<String, double> _livePrices = const {};
+
+  // Remote search results from Alpaca (backend). Populated when the local
+  // catalog has no match, after a 400ms debounce to avoid spamming the API.
+  List<StockItem> _remoteResults = const [];
+  bool _remoteLoading = false;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLivePrices();
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  List<StockItem> get _results {
+  Future<void> _loadLivePrices() async {
+    final prices = await MarketService.getPrices(
+      kAllStocks.map((s) => s.symbol).toList(),
+    );
+    if (!mounted || prices.isEmpty) return;
+    setState(() => _livePrices = prices);
+  }
+
+  /// Overlay any known live price onto a catalog stock.
+  StockItem _apply(StockItem s) {
+    final live = _livePrices[s.symbol];
+    if (live == null) return s;
+    return StockItem(
+      symbol: s.symbol,
+      name: s.name,
+      price: live,
+      changePercent: s.changePercent,
+      sector: s.sector,
+    );
+  }
+
+  /// Local catalog match.
+  List<StockItem> get _localResults {
     if (_query.isEmpty) return [];
     final q = _query.toUpperCase();
     return kAllStocks
@@ -85,11 +126,80 @@ class _StockSearchPageState extends State<StockSearchPage> {
             s.symbol.contains(q) ||
             s.name.toUpperCase().contains(q) ||
             s.sector.toUpperCase().contains(q))
+        .map(_apply)
         .toList();
   }
 
-  List<StockItem> get _popular =>
-      kAllStocks.where((s) => _popularSymbols.contains(s.symbol)).toList();
+  /// Combined: local first, then remote (de-duped).
+  List<StockItem> get _results {
+    final local = _localResults;
+    if (_remoteResults.isEmpty) return local;
+    final localSymbols = local.map((s) => s.symbol).toSet();
+    final remote = _remoteResults
+        .where((s) => !localSymbols.contains(s.symbol))
+        .toList();
+    return [...local, ...remote];
+  }
+
+  /// Debounced backend search via GET /api/market/search.
+  void _onQueryChanged(String value) {
+    setState(() {
+      _query = value;
+      _remoteResults = const [];
+    });
+    _debounce?.cancel();
+    if (value.isEmpty) return;
+    // Fire immediately for short terms (likely tickers); debounce longer names
+    final delay = value.length <= 4
+        ? const Duration(milliseconds: 200)
+        : const Duration(milliseconds: 400);
+    _debounce = Timer(delay, () => _searchRemote(value));
+  }
+
+  Future<void> _searchRemote(String query) async {
+    if (!mounted || _query != query) return; // stale
+    setState(() => _remoteLoading = true);
+
+    final r = await ApiService().searchMarket(query);
+    if (!mounted || _query != query) return; // stale
+
+    final items = <StockItem>[];
+    if (r.isOk && r.data != null) {
+      // Fetch live prices for the remote symbols in one batch so the rows
+      // render with real numbers from the start.
+      final symbols = r.data!
+          .map((m) => (m['symbol'] as String?) ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final prices = await MarketService.getPrices(symbols);
+
+      for (final m in r.data!) {
+        final sym = (m['symbol'] as String?) ?? '';
+        if (sym.isEmpty) continue;
+        final name = (m['name'] as String?) ?? sym;
+        final assetClass = (m['asset_class'] as String?) ?? '';
+        final live = prices[sym.toUpperCase()];
+        items.add(StockItem(
+          symbol: sym,
+          name: name,
+          price: live ?? 0,
+          changePercent: 0,
+          sector: assetClass,
+        ));
+      }
+    }
+
+    if (!mounted || _query != query) return;
+    setState(() {
+      _remoteResults = items;
+      _remoteLoading = false;
+    });
+  }
+
+  List<StockItem> get _popular => kAllStocks
+      .where((s) => _popularSymbols.contains(s.symbol))
+      .map(_apply)
+      .toList();
 
   void _openDetail(StockItem stock) {
     debugPrint(
@@ -134,7 +244,12 @@ class _StockSearchPageState extends State<StockSearchPage> {
                         icon: const Icon(Icons.clear, color: Colors.grey),
                         onPressed: () {
                           _controller.clear();
-                          setState(() => _query = '');
+                          _debounce?.cancel();
+                          setState(() {
+                            _query = '';
+                            _remoteResults = const [];
+                            _remoteLoading = false;
+                          });
                         },
                       )
                     : null,
@@ -146,7 +261,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
                   borderSide: BorderSide.none,
                 ),
               ),
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: _onQueryChanged,
             ),
           ),
         ),
@@ -172,6 +287,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
         const SizedBox(height: 12),
         ...kAllStocks
             .where((s) => !_popularSymbols.contains(s.symbol))
+            .map(_apply)
             .map((s) => _StockRow(stock: s, onTap: () => _openDetail(s))),
       ],
     );
@@ -179,7 +295,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
 
   Widget _buildResults() {
     final results = _results;
-    if (results.isEmpty) {
+    if (results.isEmpty && !_remoteLoading) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -198,10 +314,19 @@ class _StockSearchPageState extends State<StockSearchPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('${results.length} result${results.length == 1 ? '' : 's'}',
-            style: const TextStyle(color: Colors.grey, fontSize: 13)),
+        Text(
+          _remoteLoading
+              ? 'Searching…'
+              : '${results.length} result${results.length == 1 ? '' : 's'}',
+          style: const TextStyle(color: Colors.grey, fontSize: 13),
+        ),
         const SizedBox(height: 12),
         ...results.map((s) => _StockRow(stock: s, onTap: () => _openDetail(s))),
+        if (_remoteLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
       ],
     );
   }

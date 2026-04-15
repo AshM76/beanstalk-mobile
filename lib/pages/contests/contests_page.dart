@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -151,6 +152,9 @@ class Contest {
           .toList(),
       color: color,
       startingCash: parseDouble(m['starting_balance'], 10000).toInt(),
+      sponsorName: m['sponsor_name'] as String?,
+      sponsorLogoUrl: m['sponsor_logo_url'] as String?,
+      sponsorTagline: m['sponsor_tagline'] as String?,
     );
   }
 }
@@ -678,21 +682,46 @@ class _ContestCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                        // Sponsor tagline
+                        // Sponsor branding — logo in white pill + name
                         if (contest.sponsorName != null) ...[
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
                           Row(
                             children: [
-                              const Icon(Icons.verified_rounded,
-                                  size: 11, color: Colors.white60),
-                              const SizedBox(width: 4),
-                              Text(
-                                contest.sponsorTagline ??
-                                    'Presented by ${contest.sponsorName}',
-                                style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                    fontStyle: FontStyle.italic),
+                              if (contest.sponsorLogoUrl != null &&
+                                  contest.sponsorLogoUrl!.isNotEmpty) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: CachedNetworkImage(
+                                    imageUrl: contest.sponsorLogoUrl!,
+                                    height: 24,
+                                    width: 24,
+                                    fit: BoxFit.contain,
+                                    placeholder: (_, __) =>
+                                        const SizedBox(width: 24, height: 24),
+                                    errorWidget: (_, __, ___) =>
+                                        const Icon(Icons.business,
+                                            size: 18, color: Colors.grey),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ] else ...[
+                                const Icon(Icons.verified_rounded,
+                                    size: 16, color: Colors.white60),
+                                const SizedBox(width: 6),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  'Sponsored by ${contest.sponsorName}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),
@@ -961,12 +990,78 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tab,
+      body: Column(
         children: [
-          _DetailsTab(contest: c, participants: _participants, color: _color),
-          _LeaderboardTab(contest: c, color: _color),
-          _ChatTab(contestId: c.id, color: _color),
+          // ── Sponsor banner ─────────────────────────────────────────
+          if (c.sponsorName != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: Color.lerp(_color, Colors.black, 0.15),
+              child: Row(
+                children: [
+                  if (c.sponsorLogoUrl != null &&
+                      c.sponsorLogoUrl!.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: CachedNetworkImage(
+                        imageUrl: c.sponsorLogoUrl!,
+                        height: 30,
+                        width: 30,
+                        fit: BoxFit.contain,
+                        placeholder: (_, __) =>
+                            const SizedBox(width: 30, height: 30),
+                        errorWidget: (_, __, ___) =>
+                            const Icon(Icons.business,
+                                size: 22, color: Colors.grey),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sponsored by ${c.sponsorName}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (c.sponsorTagline != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            c.sponsorTagline!,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // ── Tab content ────────────────────────────────────────────
+          Expanded(
+            child: TabBarView(
+              controller: _tab,
+              children: [
+                _DetailsTab(contest: c, participants: _participants, color: _color),
+                _LeaderboardTab(contest: c, color: _color),
+                _ChatTab(contestId: c.id, color: _color),
+              ],
+            ),
+          ),
         ],
       ),
       // "Trade Stocks" FAB only shows when the user has joined AND the
