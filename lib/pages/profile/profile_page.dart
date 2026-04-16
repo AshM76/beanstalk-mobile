@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/lesson/lesson_service.dart';
+import '../../services/api/api_service.dart';
+import '../auth/login_page.dart';
 import '../onboarding/onboarding_flow.dart';
 
 // ── Badge model ───────────────────────────────────────────────────────────────
@@ -422,12 +424,31 @@ class ProfilePageState extends State<ProfilePage> {
                 style: TextStyle(fontSize: 13, color: Colors.red)),
             onTap: _confirmReset,
           ),
+          const Divider(height: 1, indent: 52, endIndent: 16),
+          ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            leading: const Icon(Icons.logout_rounded,
+                color: Colors.red, size: 20),
+            title: const Text('Sign Out',
+                style: TextStyle(fontSize: 13, color: Colors.red)),
+            onTap: _logout,
+          ),
         ],
       ),
     );
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
+
+  Future<void> _logout() async {
+    await ApiService().logout();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (_) => false,
+    );
+  }
 
   Future<void> _testOnboarding() async {
     final prefs = await SharedPreferences.getInstance();

@@ -18,6 +18,7 @@ import 'services/api/api_service.dart';
 import 'services/market/market_service.dart';
 import 'utils/contest_color.dart';
 import 'data/cash_tips.dart';
+import 'pages/auth/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +48,7 @@ class BeanstalkApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/home': (_) => const HomeScreen(),
+        '/login': (_) => const LoginPage(),
       },
     );
   }
@@ -64,6 +66,17 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     Future.delayed(const Duration(seconds: 2), () async {
       if (!mounted) return;
+
+      // Auth gate: send unauthenticated users to login first.
+      if (!ApiService().isAuthenticated) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
+        return;
+      }
+
+      // Onboarding gate: send new users through age/risk profile.
       final done = await isOnboardingComplete();
       if (!mounted) return;
       Navigator.pushReplacement(

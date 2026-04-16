@@ -92,10 +92,59 @@ class ApiService {
     }
   }
 
+  /// True when the user has authenticated (JWT is present).
+  bool get isAuthenticated => _jwt != null && _jwt!.isNotEmpty;
+
   /// Current user id (device-scoped UUID until a real login is wired up).
   String get currentUserId {
     assert(_initialized, 'ApiService.init() must be called before use');
     return _userId!;
+  }
+
+  // ── Auth endpoints ──────────────────────────────────────────────────────
+
+  /// Register a new account. On success, persists the returned JWT + userId
+  /// so subsequent API calls are authenticated. Returns null on success or
+  /// an error string on failure.
+  Future<String?> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    final r = await _post('/api/auth/register', {
+      'name': name,
+      'email': email,
+      'password': password,
+    });
+    if (!r.isOk) return r.error ?? 'Registration failed';
+    final d = r.data as Map;
+    await setAuth(userId: d['user_id'] as String, jwt: d['token'] as String?);
+    return null;
+  }
+
+  /// Log in with email + password. On success, persists the JWT + userId.
+  /// Returns null on success or an error string on failure.
+  Future<String?> login({
+    required String email,
+    required String password,
+  }) async {
+    final r = await _post('/api/auth/login', {
+      'email': email,
+      'password': password,
+    });
+    if (!r.isOk) return r.error ?? 'Login failed';
+    final d = r.data as Map;
+    await setAuth(userId: d['user_id'] as String, jwt: d['token'] as String?);
+    return null;
+  }
+
+  /// Sign out — clears persisted credentials.
+  Future<void> logout() async {
+    final p = await SharedPreferences.getInstance();
+    _jwt = null;
+    _userId = null;
+    await p.remove(_kJwtKey);
+    await p.remove(_kUserIdKey);
   }
 
   // ── HTTP core ────────────────────────────────────────────────────────────
