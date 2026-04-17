@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -25,6 +26,19 @@ void main() async {
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+
+  // In debug mode, clear any persisted auth so the app always boots to the
+  // login screen with a fresh device identity. Prevents stale JWTs or
+  // leftover user ids from earlier builds from tripping auth flows. The
+  // device userId is regenerated inside ApiService().init() below.
+  if (kDebugMode) {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('api_jwt');
+    await prefs.remove('api_user_id');
+    await prefs.remove('api_user_name');
+    debugPrint('[main] debug build — cleared persisted auth state');
+  }
+
   // Load/persist the device-scoped userId + any cached JWT before any
   // service touches the API.
   await ApiService().init();
@@ -220,6 +234,10 @@ class _DashboardPageState extends State<DashboardPage> {
   double _todayGain     = 0;
   Map<String, Holding> _holdings = {};
   int _unreadNotifs = 0;
+  // First name from the auth response (ApiService.userName). Null until the
+  // user has logged in on a build that captures it — falls back to the
+  // 'Beanstalk' app-bar title in that case.
+  String? _firstName;
 
   // Live prices keyed by symbol, populated from MarketService on every
   // portfolio reload. Anything not in this map falls back to the catalog
@@ -241,6 +259,22 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _loadChoicesAndPortfolio();
     _loadUnreadCount();
+    _loadFirstName();
+  }
+
+  Future<void> _loadFirstName() async {
+    final full = ApiService().userName;
+    if (full == null || full.trim().isEmpty) return;
+    final first = full.trim().split(RegExp(r'\s+')).first;
+    if (!mounted) return;
+    setState(() => _firstName = first);
+  }
+
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
   }
 
   Future<void> reload() async {
@@ -377,7 +411,12 @@ class _DashboardPageState extends State<DashboardPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2E7D32),
         foregroundColor: Colors.white,
-        title: const Text('Beanstalk', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          _firstName != null && _firstName!.isNotEmpty
+              ? '$_greeting, $_firstName! 🌱'
+              : 'Beanstalk',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         actions: [
           Stack(
             clipBehavior: Clip.none,

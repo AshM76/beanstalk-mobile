@@ -44,10 +44,11 @@ class ApiService {
   // Android emulator: use http://10.0.2.2:8080
   // iOS simulator:   http://localhost:8080 works
   // Physical device: substitute the dev machine's LAN IP
-  static const String _defaultBaseUrl = 'http://192.168.7.22:8080';
+  static const String _defaultBaseUrl = 'https://beanstalk-api.fly.dev';
 
   static const _kUserIdKey = 'api_user_id';
   static const _kJwtKey = 'api_jwt';
+  static const _kUserNameKey = 'api_user_name';
 
   // ── Singleton setup ──────────────────────────────────────────────────────
   static final ApiService _instance = ApiService._();
@@ -57,6 +58,7 @@ class ApiService {
   String _baseUrl = _defaultBaseUrl;
   String? _userId;
   String? _jwt;
+  String? _userName;
   bool _initialized = false;
 
   String get baseUrl => _baseUrl;
@@ -76,21 +78,32 @@ class ApiService {
       debugPrint('[ApiService] generated new device userId=$_userId');
     }
     _jwt = p.getString(_kJwtKey);
+    _userName = p.getString(_kUserNameKey);
     _initialized = true;
   }
 
   /// Set the authenticated user. Call from a real login flow when it exists.
-  Future<void> setAuth({required String userId, String? jwt}) async {
+  Future<void> setAuth({required String userId, String? jwt, String? name}) async {
     final p = await SharedPreferences.getInstance();
     _userId = userId;
     _jwt = jwt;
+    _userName = name;
     await p.setString(_kUserIdKey, userId);
     if (jwt != null) {
       await p.setString(_kJwtKey, jwt);
     } else {
       await p.remove(_kJwtKey);
     }
+    if (name != null && name.isNotEmpty) {
+      await p.setString(_kUserNameKey, name);
+    } else {
+      await p.remove(_kUserNameKey);
+    }
   }
+
+  /// Display name from the last successful auth response, or null if the user
+  /// authenticated before name capture was wired up (legacy sessions).
+  String? get userName => _userName;
 
   /// True when the user has authenticated (JWT is present).
   bool get isAuthenticated => _jwt != null && _jwt!.isNotEmpty;
@@ -118,7 +131,11 @@ class ApiService {
     });
     if (!r.isOk) return r.error ?? 'Registration failed';
     final d = r.data as Map;
-    await setAuth(userId: d['user_id'] as String, jwt: d['token'] as String?);
+    await setAuth(
+      userId: d['user_id'] as String,
+      jwt: d['token'] as String?,
+      name: d['name'] as String?,
+    );
     return null;
   }
 
@@ -134,7 +151,11 @@ class ApiService {
     });
     if (!r.isOk) return r.error ?? 'Login failed';
     final d = r.data as Map;
-    await setAuth(userId: d['user_id'] as String, jwt: d['token'] as String?);
+    await setAuth(
+      userId: d['user_id'] as String,
+      jwt: d['token'] as String?,
+      name: d['name'] as String?,
+    );
     return null;
   }
 
@@ -143,8 +164,10 @@ class ApiService {
     final p = await SharedPreferences.getInstance();
     _jwt = null;
     _userId = null;
+    _userName = null;
     await p.remove(_kJwtKey);
     await p.remove(_kUserIdKey);
+    await p.remove(_kUserNameKey);
   }
 
   // ── HTTP core ────────────────────────────────────────────────────────────

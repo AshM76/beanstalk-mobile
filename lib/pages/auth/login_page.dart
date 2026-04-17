@@ -24,7 +24,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    final email = _emailCtrl.text.trim();
+    // Lowercase + trim defensively: iOS autocapitalization and autocomplete
+    // will happily submit "Sarah@Demo.com" which the backend treats as a
+    // different user than "sarah@demo.com". Normalizing client-side keeps
+    // legit users from bouncing off case-sensitive email matching.
+    final email = _emailCtrl.text.trim().toLowerCase();
     final pass = _passCtrl.text;
     if (email.isEmpty || pass.isEmpty) return;
 
@@ -115,6 +119,13 @@ class _LoginPageState extends State<LoginPage> {
                       controller: _emailCtrl,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
+                      // iOS autocapitalizes the first character and tries to
+                      // autocomplete to domains like .app (matching the
+                      // bundle id). Both produce emails that don't match the
+                      // seeded accounts. Disable here and lowercase in _login.
+                      textCapitalization: TextCapitalization.none,
+                      autocorrect: false,
+                      enableSuggestions: false,
                       decoration: InputDecoration(
                         labelText: 'Email',
                         prefixIcon: const Icon(Icons.email_outlined),

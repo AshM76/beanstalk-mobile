@@ -67,7 +67,11 @@ class ProfilePageState extends State<ProfilePage> {
       _contestsJoined   = prefs.getInt('profile_contests_joined') ?? 0;
       _totalTrades      = prefs.getInt('profile_total_trades') ?? 0;
       _winRate          = prefs.getDouble('profile_win_rate') ?? 0.0;
-      _displayName      = prefs.getString('profile_display_name') ?? 'Investor';
+      // Prefer the user's manually-edited display name; otherwise fall back to
+      // the name captured from the auth response (Sarah Chen, etc.).
+      _displayName      = prefs.getString('profile_display_name')
+          ?? ApiService().userName
+          ?? 'Investor';
       _loading          = false;
     });
   }
