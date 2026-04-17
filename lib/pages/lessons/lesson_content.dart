@@ -232,7 +232,7 @@ const kLessonContent = <String, LessonContent>{
         explanation: 'High volume confirms conviction behind a price move. Many buyers or sellers are participating, making the move more meaningful. Low volume moves are less reliable.',
       ),
       LessonQuizQuestion(
-        question: 'A stock has bounced off \$50 three times. What is \$50 called?',
+        question: 'A stock drops to \$50 and bounces back up — this has happened three times. What is \$50 called?',
         options: ['Resistance level', 'Moving average', 'Support level', 'Fair value'],
         correctIndex: 2,
         explanation: 'A price level where a stock repeatedly bounces upward is called support - it acts like a floor. The more times it has been tested, the stronger that support level becomes.',

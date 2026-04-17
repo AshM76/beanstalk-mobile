@@ -623,100 +623,110 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
         title: Text('Quiz · ${_quizIndex + 1}/${_quiz.length}',
             style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            LinearProgressIndicator(
-              value: (_quizIndex + 1) / _quiz.length,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation(_color),
-              minHeight: 6,
-              borderRadius: BorderRadius.circular(3),
-            ),
-            const SizedBox(height: 24),
-            Text(q['question'] as String, style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            ...options.asMap().entries.map((e) {
-              final idx = e.key;
-              Color bg = Colors.white;
-              Color border = Colors.transparent;
-              if (_answered) {
-                if (idx == correct) {
-                  bg = const Color(0xFFE8F5E9);
-                  border = const Color(0xFF2E7D32);
-                } else if (idx == _selectedAnswer) {
-                  bg = const Color(0xFFFFEBEE);
-                  border = Colors.red;
-                }
-              } else if (_selectedAnswer == idx) {
-                border = _color;
-              }
-              return GestureDetector(
-                onTap: _answered ? null : () =>
-                    setState(() => _selectedAnswer = idx),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: bg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: border, width: 2),
+      body: Column(
+        children: [
+          // Scrollable quiz content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(
+                    value: (_quizIndex + 1) / _quiz.length,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation(_color),
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(child: Text(e.value,
-                          style: const TextStyle(fontSize: 15))),
-                      if (_answered && idx == correct)
-                        const Icon(Icons.check_circle,
-                            color: Color(0xFF2E7D32)),
-                      if (_answered && idx == _selectedAnswer && idx != correct)
-                        const Icon(Icons.cancel, color: Colors.red),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            if (_answered) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F4FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade100),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('💡', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(q['explanation'] as String,
-                        style: const TextStyle(
-                            fontSize: 14, color: Colors.black87, height: 1.5))),
+                  const SizedBox(height: 24),
+                  Text(q['question'] as String, style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  ...options.asMap().entries.map((e) {
+                    final idx = e.key;
+                    Color bg = Colors.white;
+                    Color border = Colors.transparent;
+                    if (_answered) {
+                      if (idx == correct) {
+                        bg = const Color(0xFFE8F5E9);
+                        border = const Color(0xFF2E7D32);
+                      } else if (idx == _selectedAnswer) {
+                        bg = const Color(0xFFFFEBEE);
+                        border = Colors.red;
+                      }
+                    } else if (_selectedAnswer == idx) {
+                      border = _color;
+                    }
+                    return GestureDetector(
+                      onTap: _answered ? null : () =>
+                          setState(() => _selectedAnswer = idx),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: bg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: border, width: 2),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(e.value,
+                                style: const TextStyle(fontSize: 15))),
+                            if (_answered && idx == correct)
+                              const Icon(Icons.check_circle,
+                                  color: Color(0xFF2E7D32)),
+                            if (_answered && idx == _selectedAnswer && idx != correct)
+                              const Icon(Icons.cancel, color: Colors.red),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  if (_answered) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F4FF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade100),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('💡', style: TextStyle(fontSize: 16)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(q['explanation'] as String,
+                              style: const TextStyle(
+                                  fontSize: 14, color: Colors.black87, height: 1.5))),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
+                  // Cash reaction
+                  const SizedBox(height: 8),
+                  CashBubble(
+                    message: _answered
+                        ? (_selectedAnswer == correct
+                            ? CashTips.getCorrectMessage(widget.lesson.id)
+                            : CashTips.getWrongMessage(widget.lesson.id))
+                        : CashTips.getQuizHint(widget.lesson.id, _quizIndex),
+                    mood: _answered
+                        ? (_selectedAnswer == correct
+                            ? CashMood.excited
+                            : CashMood.encouraging)
+                        : CashMood.thinking,
+                  ),
+                ],
               ),
-            ],
-            // Cash reaction
-            const SizedBox(height: 8),
-            CashBubble(
-              message: _answered
-                  ? (_selectedAnswer == correct
-                      ? CashTips.getCorrectMessage(widget.lesson.id)
-                      : CashTips.getWrongMessage(widget.lesson.id))
-                  : CashTips.getQuizHint(widget.lesson.id, _quizIndex),
-              mood: _answered
-                  ? (_selectedAnswer == correct
-                      ? CashMood.excited
-                      : CashMood.encouraging)
-                  : CashMood.thinking,
             ),
-            const Spacer(),
-            SizedBox(
+          ),
+          // Pinned bottom button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: SizedBox(
               width: double.infinity, height: 52,
               child: ElevatedButton(
                 onPressed: _selectedAnswer == null ? null : () async {
@@ -796,8 +806,8 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -807,11 +817,11 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
     return Scaffold(
       backgroundColor: _color,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 20),
               SvgPicture.asset(
                 passed
                     ? 'assets/images/cash/cash_excited.svg'
