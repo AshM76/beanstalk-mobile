@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'stock_detail_page.dart';
-import '../../services/api/api_service.dart';
+import '../../models/asset_class.dart';
 import '../../services/market/market_service.dart';
+import '../../widgets/asset_class_chip.dart';
+import '../../widgets/asset_class_filter.dart';
 
 final _stockCurrency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
@@ -83,6 +85,9 @@ class _StockSearchPageState extends State<StockSearchPage> {
   bool _remoteLoading = false;
   Timer? _debounce;
 
+  // Active asset-class filter. null = "All".
+  AssetClass? _filter;
+
   @override
   void initState() {
     super.initState();
@@ -117,6 +122,16 @@ class _StockSearchPageState extends State<StockSearchPage> {
     );
   }
 
+  /// Best-effort asset class for a local catalog entry, inferred from the
+  /// `sector` field. Temporary until the `StockItem`/Holding model carries
+  /// an explicit `assetClass` (spec step 6).
+  AssetClass _localAssetClass(StockItem s) {
+    final sector = s.sector.toUpperCase();
+    if (sector == 'ETF') return AssetClass.etf;
+    if (sector == 'CRYPTO') return AssetClass.crypto;
+    return AssetClass.stock;
+  }
+
   /// Local catalog match.
   List<StockItem> get _localResults {
     if (_query.isEmpty) return [];
@@ -126,6 +141,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
             s.symbol.contains(q) ||
             s.name.toUpperCase().contains(q) ||
             s.sector.toUpperCase().contains(q))
+        .where((s) => _filter == null || _localAssetClass(s) == _filter)
         .map(_apply)
         .toList();
   }
@@ -160,20 +176,20 @@ class _StockSearchPageState extends State<StockSearchPage> {
     if (!mounted || _query != query) return; // stale
     setState(() => _remoteLoading = true);
 
-    final r = await ApiService().searchMarket(query);
+    final raw = await MarketService.searchTickers(query, filter: _filter);
     if (!mounted || _query != query) return; // stale
 
     final items = <StockItem>[];
-    if (r.isOk && r.data != null) {
+    if (raw.isNotEmpty) {
       // Fetch live prices for the remote symbols in one batch so the rows
       // render with real numbers from the start.
-      final symbols = r.data!
+      final symbols = raw
           .map((m) => (m['symbol'] as String?) ?? '')
           .where((s) => s.isNotEmpty)
           .toList();
       final prices = await MarketService.getPrices(symbols);
 
-      for (final m in r.data!) {
+      for (final m in raw) {
         final sym = (m['symbol'] as String?) ?? '';
         if (sym.isEmpty) continue;
         final name = (m['name'] as String?) ?? sym;
@@ -198,8 +214,25 @@ class _StockSearchPageState extends State<StockSearchPage> {
 
   List<StockItem> get _popular => kAllStocks
       .where((s) => _popularSymbols.contains(s.symbol))
+      .where((s) => _filter == null || _localAssetClass(s) == _filter)
       .map(_apply)
       .toList();
+
+  void _onFilterChanged(AssetClass? filter) {
+    if (_filter == filter) return;
+    setState(() {
+      _filter = filter;
+      _remoteResults = const [];
+    });
+    // Re-fire remote search under the new filter if a query is active.
+    if (_query.isNotEmpty) {
+      _debounce?.cancel();
+      _debounce = Timer(
+        const Duration(milliseconds: 200),
+        () => _searchRemote(_query),
+      );
+    }
+  }
 
   void _openDetail(StockItem stock) {
     debugPrint(
@@ -266,7 +299,16 @@ class _StockSearchPageState extends State<StockSearchPage> {
           ),
         ),
       ),
-      body: _query.isEmpty ? _buildPopular() : _buildResults(),
+      body: Column(
+        children: [
+          const SizedBox(height: 8),
+          AssetClassFilter(selected: _filter, onChanged: _onFilterChanged),
+          const SizedBox(height: 4),
+          Expanded(
+            child: _query.isEmpty ? _buildPopular() : _buildResults(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -287,6 +329,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
         const SizedBox(height: 12),
         ...kAllStocks
             .where((s) => !_popularSymbols.contains(s.symbol))
+            .where((s) => _filter == null || _localAssetClass(s) == _filter)
             .map(_apply)
             .map((s) => _StockRow(stock: s, onTap: () => _openDetail(s))),
       ],
@@ -352,7 +395,7 @@ class _StockRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 6,
                 offset: const Offset(0, 2)),
           ],
@@ -382,9 +425,20 @@ class _StockRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(stock.symbol,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(stock.symbol,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                      const SizedBox(width: 6),
+                      AssetClassChip.fromRaw(stock.sector),
+                    ],
+                  ),
                   Text(stock.name,
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                       overflow: TextOverflow.ellipsis),
@@ -403,7 +457,7 @@ class _StockRow extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(stock.formattedChange,

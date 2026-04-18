@@ -20,6 +20,7 @@ import 'services/market/market_service.dart';
 import 'utils/contest_color.dart';
 import 'data/cash_tips.dart';
 import 'pages/auth/login_page.dart';
+import 'widgets/asset_class_chip.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -686,9 +687,28 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(h.symbol,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14)),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(h.symbol,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                        ),
+                        const SizedBox(width: 6),
+                        // Temporary: look up asset class via catalog. Step 6
+                        // puts `assetClass` on the Holding model directly,
+                        // at which point this becomes h.assetClass.
+                        AssetClassChip.fromRaw(
+                          kAllStocks
+                              .where((s) => s.symbol == h.symbol)
+                              .firstOrNull
+                              ?.sector,
+                        ),
+                      ],
+                    ),
                     Text(
                       '${h.quantity.toStringAsFixed(h.quantity % 1 == 0 ? 0 : 4)} shares'
                       '  ·  avg ${_currency.format(h.avgCost)}',
