@@ -53,7 +53,7 @@ const kAllStocks = [
   StockItem(symbol: 'QQQ',   name: 'Nasdaq-100 ETF',        price: 448.32, changePercent:  0.98, sector: 'ETF'),
   StockItem(symbol: 'XOM',   name: 'ExxonMobil Corp.',      price: 114.65, changePercent: -0.18, sector: 'Energy'),
   StockItem(symbol: 'BA',    name: 'Boeing Co.',            price: 188.20, changePercent: -0.55, sector: 'Industrials'),
-  StockItem(symbol: 'COIN',  name: 'Coinbase Global',       price: 218.45, changePercent:  4.32, sector: 'Crypto'),
+  StockItem(symbol: 'COIN',  name: 'Coinbase Global',       price: 218.45, changePercent:  4.32, sector: 'Financials'),
   StockItem(symbol: 'PYPL',  name: 'PayPal Holdings',       price: 66.78,  changePercent: -1.12, sector: 'Financials'),
 ];
 
@@ -313,6 +313,12 @@ class _StockSearchPageState extends State<StockSearchPage> {
   }
 
   Widget _buildPopular() {
+    // Catalog has no crypto (and the backend's default rules strip crypto
+    // from search), so tell users what's going on rather than showing
+    // empty Popular / All Stocks sections.
+    if (_filter == AssetClass.crypto) {
+      return _cryptoComingSoonState();
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -336,9 +342,42 @@ class _StockSearchPageState extends State<StockSearchPage> {
     );
   }
 
+  /// Shown when the Crypto filter is selected but nothing can surface —
+  /// the catalog has no crypto today and the backend's default rules
+  /// strip crypto results before they reach us. Better than a generic
+  /// "no results" because the real answer is "feature isn't live yet."
+  Widget _cryptoComingSoonState() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('🪙', style: TextStyle(fontSize: 48)),
+            SizedBox(height: 16),
+            Text(
+              'Crypto trading is launching soon',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Check back to trade BTC, ETH, and more.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildResults() {
     final results = _results;
     if (results.isEmpty && !_remoteLoading) {
+      if (_filter == AssetClass.crypto) {
+        return _cryptoComingSoonState();
+      }
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
