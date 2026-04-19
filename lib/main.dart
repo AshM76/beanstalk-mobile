@@ -702,15 +702,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                   fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
                         const SizedBox(width: 6),
-                        // Temporary: look up asset class via catalog. Step 6
-                        // puts `assetClass` on the Holding model directly,
-                        // at which point this becomes h.assetClass.
-                        AssetClassChip.fromRaw(
-                          kAllStocks
-                              .where((s) => s.symbol == h.symbol)
-                              .firstOrNull
-                              ?.sector,
-                        ),
+                        AssetClassChip(assetClass: h.assetClass),
                       ],
                     ),
                     Text(
