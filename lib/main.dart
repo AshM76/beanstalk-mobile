@@ -41,8 +41,12 @@ void main() async {
   }
 
   // Load/persist the device-scoped userId + any cached JWT before any
-  // service touches the API.
-  await ApiService().init();
+  // service touches the API. Respect --dart-define=API_BASE_URL=... so the
+  // demo startup script can point the sim at a local API.
+  const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+  await ApiService().init(
+    baseUrlOverride: apiBaseUrl.isEmpty ? null : apiBaseUrl,
+  );
   runApp(const BeanstalkApp());
 }
 
