@@ -22,8 +22,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
-    await Future.delayed(const Duration(milliseconds: 600));
-    final err = widget.auth.login(
+    final err = await widget.auth.login(
       _emailCtrl.text.trim(),
       _passwordCtrl.text,
     );
@@ -159,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Text('Hint: admin@beanstalk.app / admin123',
+                      Text('Hint: admin@beanstalk.app / Demo123!',
                           style: TextStyle(
                               fontSize: 11, color: Colors.grey.shade400)),
                     ],
