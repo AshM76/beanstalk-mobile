@@ -14,6 +14,7 @@
 
 import 'package:flutter/foundation.dart';
 
+import '../../models/asset_class.dart';
 import '../api/api_service.dart';
 
 class MarketService {
@@ -83,6 +84,27 @@ class MarketService {
       result[sym] = price;
     }
     return result;
+  }
+
+  /// Search the backend full-universe index, optionally filtered to a
+  /// specific asset class. Results are raw backend maps shaped
+  /// `{symbol, name, asset_class, ...}` where `asset_class` is `'STOCK' |
+  /// 'ETF' | 'CRYPTO'`. Client-side filter because the backend endpoint
+  /// does not currently take an `asset_class` query param.
+  static Future<List<Map<String, dynamic>>> searchTickers(
+    String query, {
+    AssetClass? filter,
+  }) async {
+    if (query.isEmpty) return const [];
+    final r = await _api.searchMarket(query);
+    if (!r.isOk || r.data == null) {
+      debugPrint('[MarketService.searchTickers] $query → ${r.error}');
+      return const [];
+    }
+    if (filter == null) return r.data!;
+    return r.data!
+        .where((m) => AssetClassParse.fromString(m['asset_class']) == filter)
+        .toList();
   }
 
   /// Force-invalidate the cache (e.g. after a buy/sell so the next dashboard

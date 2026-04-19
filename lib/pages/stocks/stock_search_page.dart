@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'stock_detail_page.dart';
-import '../../services/api/api_service.dart';
+import '../../models/asset_class.dart';
 import '../../services/market/market_service.dart';
+import '../../widgets/asset_class_chip.dart';
+import '../../widgets/asset_class_filter.dart';
 
 final _stockCurrency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
@@ -51,7 +53,7 @@ const kAllStocks = [
   StockItem(symbol: 'QQQ',   name: 'Nasdaq-100 ETF',        price: 448.32, changePercent:  0.98, sector: 'ETF'),
   StockItem(symbol: 'XOM',   name: 'ExxonMobil Corp.',      price: 114.65, changePercent: -0.18, sector: 'Energy'),
   StockItem(symbol: 'BA',    name: 'Boeing Co.',            price: 188.20, changePercent: -0.55, sector: 'Industrials'),
-  StockItem(symbol: 'COIN',  name: 'Coinbase Global',       price: 218.45, changePercent:  4.32, sector: 'Crypto'),
+  StockItem(symbol: 'COIN',  name: 'Coinbase Global',       price: 218.45, changePercent:  4.32, sector: 'Financials'),
   StockItem(symbol: 'PYPL',  name: 'PayPal Holdings',       price: 66.78,  changePercent: -1.12, sector: 'Financials'),
 ];
 
@@ -82,6 +84,9 @@ class _StockSearchPageState extends State<StockSearchPage> {
   List<StockItem> _remoteResults = const [];
   bool _remoteLoading = false;
   Timer? _debounce;
+
+  // Active asset-class filter. null = "All".
+  AssetClass? _filter;
 
   @override
   void initState() {
@@ -117,6 +122,16 @@ class _StockSearchPageState extends State<StockSearchPage> {
     );
   }
 
+  /// Best-effort asset class for a local catalog entry, inferred from the
+  /// `sector` field. Temporary until the `StockItem`/Holding model carries
+  /// an explicit `assetClass` (spec step 6).
+  AssetClass _localAssetClass(StockItem s) {
+    final sector = s.sector.toUpperCase();
+    if (sector == 'ETF') return AssetClass.etf;
+    if (sector == 'CRYPTO') return AssetClass.crypto;
+    return AssetClass.stock;
+  }
+
   /// Local catalog match.
   List<StockItem> get _localResults {
     if (_query.isEmpty) return [];
@@ -126,6 +141,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
             s.symbol.contains(q) ||
             s.name.toUpperCase().contains(q) ||
             s.sector.toUpperCase().contains(q))
+        .where((s) => _filter == null || _localAssetClass(s) == _filter)
         .map(_apply)
         .toList();
   }
@@ -160,20 +176,20 @@ class _StockSearchPageState extends State<StockSearchPage> {
     if (!mounted || _query != query) return; // stale
     setState(() => _remoteLoading = true);
 
-    final r = await ApiService().searchMarket(query);
+    final raw = await MarketService.searchTickers(query, filter: _filter);
     if (!mounted || _query != query) return; // stale
 
     final items = <StockItem>[];
-    if (r.isOk && r.data != null) {
+    if (raw.isNotEmpty) {
       // Fetch live prices for the remote symbols in one batch so the rows
       // render with real numbers from the start.
-      final symbols = r.data!
+      final symbols = raw
           .map((m) => (m['symbol'] as String?) ?? '')
           .where((s) => s.isNotEmpty)
           .toList();
       final prices = await MarketService.getPrices(symbols);
 
-      for (final m in r.data!) {
+      for (final m in raw) {
         final sym = (m['symbol'] as String?) ?? '';
         if (sym.isEmpty) continue;
         final name = (m['name'] as String?) ?? sym;
@@ -198,8 +214,25 @@ class _StockSearchPageState extends State<StockSearchPage> {
 
   List<StockItem> get _popular => kAllStocks
       .where((s) => _popularSymbols.contains(s.symbol))
+      .where((s) => _filter == null || _localAssetClass(s) == _filter)
       .map(_apply)
       .toList();
+
+  void _onFilterChanged(AssetClass? filter) {
+    if (_filter == filter) return;
+    setState(() {
+      _filter = filter;
+      _remoteResults = const [];
+    });
+    // Re-fire remote search under the new filter if a query is active.
+    if (_query.isNotEmpty) {
+      _debounce?.cancel();
+      _debounce = Timer(
+        const Duration(milliseconds: 200),
+        () => _searchRemote(_query),
+      );
+    }
+  }
 
   void _openDetail(StockItem stock) {
     debugPrint(
@@ -266,11 +299,26 @@ class _StockSearchPageState extends State<StockSearchPage> {
           ),
         ),
       ),
-      body: _query.isEmpty ? _buildPopular() : _buildResults(),
+      body: Column(
+        children: [
+          const SizedBox(height: 8),
+          AssetClassFilter(selected: _filter, onChanged: _onFilterChanged),
+          const SizedBox(height: 4),
+          Expanded(
+            child: _query.isEmpty ? _buildPopular() : _buildResults(),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildPopular() {
+    // Catalog has no crypto (and the backend's default rules strip crypto
+    // from search), so tell users what's going on rather than showing
+    // empty Popular / All Stocks sections.
+    if (_filter == AssetClass.crypto) {
+      return _cryptoComingSoonState();
+    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -287,15 +335,49 @@ class _StockSearchPageState extends State<StockSearchPage> {
         const SizedBox(height: 12),
         ...kAllStocks
             .where((s) => !_popularSymbols.contains(s.symbol))
+            .where((s) => _filter == null || _localAssetClass(s) == _filter)
             .map(_apply)
             .map((s) => _StockRow(stock: s, onTap: () => _openDetail(s))),
       ],
     );
   }
 
+  /// Shown when the Crypto filter is selected but nothing can surface —
+  /// the catalog has no crypto today and the backend's default rules
+  /// strip crypto results before they reach us. Better than a generic
+  /// "no results" because the real answer is "feature isn't live yet."
+  Widget _cryptoComingSoonState() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('🪙', style: TextStyle(fontSize: 48)),
+            SizedBox(height: 16),
+            Text(
+              'Crypto trading is launching soon',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Check back to trade BTC, ETH, and more.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildResults() {
     final results = _results;
     if (results.isEmpty && !_remoteLoading) {
+      if (_filter == AssetClass.crypto) {
+        return _cryptoComingSoonState();
+      }
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -352,7 +434,7 @@ class _StockRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 6,
                 offset: const Offset(0, 2)),
           ],
@@ -382,9 +464,20 @@ class _StockRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(stock.symbol,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(stock.symbol,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                      const SizedBox(width: 6),
+                      AssetClassChip.fromRaw(stock.sector),
+                    ],
+                  ),
                   Text(stock.name,
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                       overflow: TextOverflow.ellipsis),
@@ -403,7 +496,7 @@ class _StockRow extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(stock.formattedChange,

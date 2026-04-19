@@ -8,6 +8,7 @@ import '../../services/portfolio/portfolio_service.dart';
 import '../../services/api/api_service.dart';
 import '../../services/market/market_service.dart';
 import '../../utils/contest_color.dart';
+import '../../widgets/asset_class_chip.dart';
 
 final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
@@ -190,8 +191,17 @@ class _StockDetailPageState extends State<StockDetailPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(s.symbol,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(s.symbol,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(width: 8),
+                AssetClassChip.fromRaw(s.sector, onColoredBackground: true),
+              ],
+            ),
             Text(s.name,
                 style: const TextStyle(fontSize: 12, color: Colors.white70)),
           ],
@@ -256,7 +266,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _accentColor.withOpacity(0.1),
+                        color: _accentColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -312,7 +322,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                             spotIndexes
                                 .map((i) => TouchedSpotIndicatorData(
                                       FlLine(
-                                          color: _accentColor.withOpacity(0.5),
+                                          color: _accentColor.withValues(alpha: 0.5),
                                           strokeWidth: 1,
                                           dashArray: [4, 4]),
                                       FlDotData(
@@ -327,7 +337,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                                     ))
                                 .toList(),
                         touchTooltipData: LineTouchTooltipData(
-                          tooltipBgColor: _accentColor.withOpacity(0.85),
+                          tooltipBgColor: _accentColor.withValues(alpha: 0.85),
                           getTooltipItems: (spots) => spots
                               .map((s) => LineTooltipItem(
                                     '\$${s.y.toStringAsFixed(2)}',
@@ -385,7 +395,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                             show: true,
                             gradient: LinearGradient(
                               colors: [
-                                _accentColor.withOpacity(0.18),
+                                _accentColor.withValues(alpha: 0.18),
                                 Colors.transparent,
                               ],
                               begin: Alignment.topCenter,
@@ -866,7 +876,7 @@ class _SectorChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
+          color: Colors.white.withValues(alpha: 0.2),
           border: Border.all(color: Colors.grey.shade200),
           borderRadius: BorderRadius.circular(20),
         ),
