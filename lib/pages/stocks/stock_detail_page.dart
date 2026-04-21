@@ -7,6 +7,7 @@ import 'stock_search_page.dart';
 import '../../services/portfolio/portfolio_service.dart';
 import '../../services/api/api_service.dart';
 import '../../services/market/market_service.dart';
+import '../../services/watchlist/watchlist_service.dart';
 import '../../utils/contest_color.dart';
 import '../../widgets/asset_class_chip.dart';
 
@@ -66,6 +67,12 @@ class _StockDetailPageState extends State<StockDetailPage> {
   // Effective price used everywhere that previously read `s.price`.
   double get _effectivePrice => _livePrice ?? s.price;
 
+  // Whether this symbol is currently on the user's watchlist. Loaded from
+  // WatchlistService in initState and kept in sync via the bookmark icon's
+  // onPressed. Null until the initial load resolves — we render the outlined
+  // icon in that window rather than guessing.
+  bool? _onWatchlist;
+
   // Portfolio selector state. `_choices` always starts with the main portfolio
   // (id=null); joined contests are appended from SharedPreferences +
   // `/api/contests`. `_activeContestId` is the one trades will route to —
@@ -89,6 +96,38 @@ class _StockDetailPageState extends State<StockDetailPage> {
     );
     _loadChoicesAndPortfolio();
     _loadLivePrice();
+    _loadWatchlistMembership();
+  }
+
+  Future<void> _loadWatchlistMembership() async {
+    final on = await WatchlistService.contains(s.symbol);
+    if (!mounted) return;
+    setState(() => _onWatchlist = on);
+  }
+
+  Future<void> _toggleWatchlist() async {
+    // Optimistic flip: update the icon immediately, then reconcile with the
+    // store. If the write fails for any reason we revert and surface an error.
+    final wasOn = _onWatchlist ?? false;
+    setState(() => _onWatchlist = !wasOn);
+    try {
+      if (wasOn) {
+        await WatchlistService.remove(s.symbol);
+      } else {
+        await WatchlistService.add(s.symbol);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(wasOn ? 'Removed from Watchlist' : 'Added to Watchlist'),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _onWatchlist = wasOn);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not update watchlist'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   Future<void> _loadLivePrice() async {
@@ -208,10 +247,10 @@ class _StockDetailPageState extends State<StockDetailPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.bookmark_border),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Added to Watchlist')),
+            icon: Icon(
+              (_onWatchlist ?? false) ? Icons.bookmark : Icons.bookmark_border,
             ),
+            onPressed: _toggleWatchlist,
           ),
         ],
       ),
