@@ -220,18 +220,14 @@ class _StockSearchPageState extends State<StockSearchPage> {
 
   void _onFilterChanged(AssetClass? filter) {
     if (_filter == filter) return;
+    _debounce?.cancel();
+    _controller.clear();
     setState(() {
       _filter = filter;
+      _query = '';
       _remoteResults = const [];
+      _remoteLoading = false;
     });
-    // Re-fire remote search under the new filter if a query is active.
-    if (_query.isNotEmpty) {
-      _debounce?.cancel();
-      _debounce = Timer(
-        const Duration(milliseconds: 200),
-        () => _searchRemote(_query),
-      );
-    }
   }
 
   void _openDetail(StockItem stock) {
@@ -259,7 +255,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2E7D32),
         foregroundColor: Colors.white,
-        title: const Text('Stock Search', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Discover', style: TextStyle(fontWeight: FontWeight.bold)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
