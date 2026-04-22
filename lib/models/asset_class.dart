@@ -26,11 +26,10 @@ extension AssetClassX on AssetClass {
   /// Crypto trades 24/7 — used to suppress "market closed" UI.
   bool get isAlwaysOpen => this == AssetClass.crypto;
 
-  /// How many decimals to show in quantity displays.
-  int get quantityDecimals => this == AssetClass.crypto ? 6 : 0;
-
-  /// Whether fractional buys are allowed.
-  bool get allowsFractional => this == AssetClass.crypto;
+  /// How many decimals to show in quantity displays. Every asset class
+  /// supports fractional quantity; stocks and ETFs cap at 4 decimals
+  /// (e.g. 0.1234 SPY), crypto at 6 (e.g. 0.000001 BTC).
+  int get quantityDecimals => this == AssetClass.crypto ? 6 : 4;
 }
 
 extension AssetClassParse on AssetClass {

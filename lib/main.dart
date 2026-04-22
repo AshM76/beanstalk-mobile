@@ -21,6 +21,7 @@ import 'utils/contest_color.dart';
 import 'data/cash_tips.dart';
 import 'pages/auth/login_page.dart';
 import 'widgets/asset_class_chip.dart';
+import 'models/asset_class.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -228,6 +229,22 @@ class _PortfolioChoice {
   final String label;
   const _PortfolioChoice({required this.id, required this.label});
   bool get isMain => id == null;
+}
+
+/// Fractional-aware quantity formatting for a holding. Uses the asset's
+/// `quantityDecimals` (4 for stocks/ETFs, 6 for crypto) and trims trailing
+/// zeros so "5.0000" renders as "5" and "0.5000" as "0.5".
+String _fmtHoldingQty(Holding h) {
+  final s = h.quantity.toStringAsFixed(h.assetClass.quantityDecimals);
+  if (!s.contains('.')) return s;
+  return s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+}
+
+/// Unit suffix for a holding row: " share", " shares" for stocks/ETFs
+/// (fractional-aware — "0.5 shares"), " BTC" etc. for crypto.
+String _holdingUnit(Holding h) {
+  if (h.assetClass == AssetClass.crypto) return ' ${h.symbol}';
+  return ' share${h.quantity == 1 ? '' : 's'}';
 }
 
 class _DashboardPageState extends State<DashboardPage> {
@@ -706,7 +723,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ],
                     ),
                     Text(
-                      '${h.quantity.toStringAsFixed(h.quantity % 1 == 0 ? 0 : 4)} shares'
+                      '${_fmtHoldingQty(h)}${_holdingUnit(h)}'
                       '  ·  avg ${_currency.format(h.avgCost)}',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),

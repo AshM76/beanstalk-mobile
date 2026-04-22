@@ -283,7 +283,7 @@ class ApiService {
     required String userId,
     required String symbol,
     required String action,
-    required int quantity,
+    required num quantity,
     double? price,
     String? contestId,
     String? portfolioId,

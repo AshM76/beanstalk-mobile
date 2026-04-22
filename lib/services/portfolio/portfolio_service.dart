@@ -114,7 +114,7 @@ class PortfolioService {
     required String symbol,
     required String name, // kept for signature compat; backend ignores
     required double price,
-    required int quantity,
+    required num quantity,
     String? contestId,
   }) async {
     debugPrint(
@@ -146,7 +146,7 @@ class PortfolioService {
   static Future<String?> sell({
     required String symbol,
     required double price,
-    required int quantity,
+    required num quantity,
     String? contestId,
   }) async {
     debugPrint(

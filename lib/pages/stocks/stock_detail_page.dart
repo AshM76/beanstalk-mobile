@@ -1,9 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'stock_search_page.dart';
+import '../../models/asset_class.dart';
 import '../../services/portfolio/portfolio_service.dart';
 import '../../services/api/api_service.dart';
 import '../../services/market/market_service.dart';
@@ -66,6 +68,17 @@ class _StockDetailPageState extends State<StockDetailPage> {
 
   // Effective price used everywhere that previously read `s.price`.
   double get _effectivePrice => _livePrice ?? s.price;
+
+  // Asset class derived from the sector tag on StockItem — mirrors the
+  // mapping in StockSearchPage. Drives decimal precision and unit label
+  // in the trade sheet; all asset classes accept fractional quantity
+  // (stocks/ETFs to 4 decimals, crypto to 6).
+  AssetClass get _assetClass {
+    final upper = s.sector.toUpperCase();
+    if (upper == 'ETF') return AssetClass.etf;
+    if (upper == 'CRYPTO') return AssetClass.crypto;
+    return AssetClass.stock;
+  }
 
   // Whether this symbol is currently on the user's watchlist. Loaded from
   // WatchlistService in initState and kept in sync via the bookmark icon's
@@ -688,13 +701,45 @@ class _StockDetailPageState extends State<StockDetailPage> {
   }
 
   void _showTradeSheet(BuildContext context, {required bool isBuy}) {
-    int shares = 1;
+    final assetClass  = _assetClass;
+    final qtyDecimals = assetClass.quantityDecimals;
+    final isCrypto    = assetClass == AssetClass.crypto;
+
+    // shares is `num` so it can hold either an int (user typed `3`) or a
+    // double (user typed `0.5`). Never silently coerced to int — that was
+    // the pre-2026-04-20 bug where `0.5 AAPL` became `1`.
+    num shares = 1;
     final ctrl = TextEditingController(text: '1');
 
-    // Max shares user can buy (by cash) or sell (by holdings)
-    int maxShares() => isBuy
-        ? (_cash / _effectivePrice).floor()
-        : _heldShares.floor();
+    String fmtQty(num q) {
+      // Trim trailing zeros so "0.50" renders as "0.5", "5.0000" as "5".
+      final s = q.toStringAsFixed(qtyDecimals);
+      if (!s.contains('.')) return s;
+      return s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+    }
+
+    // Singular only when quantity is exactly 1. "0.5 shares", "1 share",
+    // "1.5 shares". Crypto uses the ticker symbol as the unit instead.
+    // `unitShort` drops "of SYMBOL" for the subtitle + button (the user is
+    // already on SYMBOL's page); `unitLong` keeps it for the confirmation
+    // snackbar, which can be read without that context.
+    String unitShort(num q) =>
+        isCrypto ? ' ${s.symbol}' : ' share${q == 1 ? '' : 's'}';
+    String unitLong(num q) =>
+        isCrypto ? ' ${s.symbol}' : ' share${q == 1 ? '' : 's'} of ${s.symbol}';
+
+    // Max quantity the user can buy (by cash) or sell (by holdings).
+    // Always fractional-aware — we carry the full double so the user can
+    // spend their last $3 on a partial share or on BTC dust.
+    num maxQty() =>
+        isBuy ? _cash / _effectivePrice : _heldShares;
+
+    // Allow digits + at most one `.` + up to `qtyDecimals` digits after it.
+    // Silently blocks the 5th decimal on stocks/ETFs and the 7th on crypto.
+    final inputFormatters = <TextInputFormatter>[
+      _DecimalInputFormatter(maxDecimals: qtyDecimals),
+    ];
+    const keyboardType = TextInputType.numberWithOptions(decimal: true);
 
     showModalBottomSheet(
       context: context,
@@ -704,14 +749,27 @@ class _StockDetailPageState extends State<StockDetailPage> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          final total    = shares * _effectivePrice;
-          final limit    = maxShares();
-          final canTrade = limit >= 1;
+          final limit    = maxQty();
+          final canTrade = limit > 0;
+          // Default `shares = 1`, but a user with < 1 unit available (e.g.
+          // $50 cash buying a $200 stock, or holding 0.3 BTC on the sell
+          // sheet) would see a prefilled amount they can't submit. Clamp
+          // once on first build so the UI starts in a valid state.
+          if (canTrade && shares > limit) {
+            shares = limit;
+            ctrl.text = fmtQty(shares);
+          }
+          final total = shares * _effectivePrice;
 
-          void updateShares(int val) {
-            val = val.clamp(1, limit > 0 ? limit : 1);
-            shares = val;
-            ctrl.text = '$val';
+          // +/- step. Step by 1 when there's at least 1 unit of headroom
+          // so whole-share buys are one tap; otherwise step by 0.1 so a
+          // user with 0.3 BTC (or $50 of a $200 stock) isn't stuck unable
+          // to nudge.
+          num stepSize() => limit >= 1 ? 1 : 0.1;
+
+          void updateShares(num val) {
+            shares = val.toDouble().clamp(0.0, maxQty());
+            ctrl.text = fmtQty(shares);
             ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
           }
 
@@ -737,7 +795,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                 Text(
                   isBuy
                       ? 'Available: ${_currency.format(_cash)}'
-                      : 'You hold: ${_heldShares.toStringAsFixed(_heldShares % 1 == 0 ? 0 : 4)} shares',
+                      : 'You hold: ${fmtQty(_heldShares)}${unitShort(_heldShares)}',
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
                 ),
                 const SizedBox(height: 20),
@@ -758,13 +816,15 @@ class _StockDetailPageState extends State<StockDetailPage> {
                     children: [
                       _QtyButton(
                           icon: Icons.remove,
-                          onTap: () => setSheetState(() => updateShares(shares - 1))),
+                          onTap: () => setSheetState(
+                              () => updateShares(shares - stepSize()))),
                       const SizedBox(width: 16),
                       SizedBox(
                         width: 90,
                         child: TextField(
                           controller: ctrl,
-                          keyboardType: TextInputType.number,
+                          keyboardType: keyboardType,
+                          inputFormatters: inputFormatters,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                               fontSize: 32, fontWeight: FontWeight.bold),
@@ -787,13 +847,20 @@ class _StockDetailPageState extends State<StockDetailPage> {
                             ),
                           ),
                           onChanged: (val) {
-                            final n = int.tryParse(val);
-                            if (n != null && n >= 1) {
-                              setSheetState(() => shares = n.clamp(1, limit));
+                            // Don't call updateShares here — it rewrites the
+                            // controller text and fights the user mid-typing
+                            // (e.g. "0." would become "0" before they can
+                            // type the decimal digit). Just track the value;
+                            // final clamp happens on submit.
+                            final n = num.tryParse(val);
+                            if (n != null && n > 0) {
+                              setSheetState(() {
+                                shares = n.toDouble().clamp(0.0, limit.toDouble());
+                              });
                             }
                           },
                           onSubmitted: (val) {
-                            final n = int.tryParse(val) ?? 1;
+                            final n = num.tryParse(val) ?? stepSize();
                             setSheetState(() => updateShares(n));
                           },
                         ),
@@ -801,11 +868,13 @@ class _StockDetailPageState extends State<StockDetailPage> {
                       const SizedBox(width: 16),
                       _QtyButton(
                           icon: Icons.add,
-                          onTap: () => setSheetState(() => updateShares(shares + 1))),
+                          onTap: () => setSheetState(
+                              () => updateShares(shares + stepSize()))),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Text('shares', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                  Text(isCrypto ? assetClass.label.toLowerCase() : 'shares',
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
                   const SizedBox(height: 16),
                   // Totals row
                   Container(
@@ -857,7 +926,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                           await _loadPortfolio(); // refresh cash + held
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(
-                              '${isBuy ? 'Bought' : 'Sold'} $shares share${shares > 1 ? 's' : ''} of ${s.symbol}',
+                              '${isBuy ? 'Bought' : 'Sold'} ${fmtQty(shares)}${unitLong(shares)}',
                             ),
                             backgroundColor:
                                 isBuy ? const Color(0xFF2E7D32) : Colors.red,
@@ -872,7 +941,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                             borderRadius: BorderRadius.circular(14)),
                       ),
                       child: Text(
-                        '${isBuy ? 'Buy' : 'Sell'} $shares share${shares > 1 ? 's' : ''} · ${_currency.format(total)}',
+                        '${isBuy ? 'Buy' : 'Sell'} ${fmtQty(shares)}${unitShort(shares)} · ${_currency.format(total)}',
                         style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.bold),
                       ),
@@ -885,6 +954,30 @@ class _StockDetailPageState extends State<StockDetailPage> {
         },
       ),
     );
+  }
+}
+
+/// Accepts digits plus at most one `.` plus up to [maxDecimals] digits
+/// after it. Rejects edits that would violate the shape by reverting to
+/// the previous value — so typing the 5th decimal on a stock (cap 4) or
+/// the 7th on crypto (cap 6) is silently ignored.
+class _DecimalInputFormatter extends TextInputFormatter {
+  final int maxDecimals;
+  _DecimalInputFormatter({required this.maxDecimals});
+
+  static final _shape = RegExp(r'^\d*\.?\d*$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final t = newValue.text;
+    if (t.isEmpty) return newValue;
+    if (!_shape.hasMatch(t)) return oldValue;
+    final dot = t.indexOf('.');
+    if (dot != -1 && t.length - dot - 1 > maxDecimals) return oldValue;
+    return newValue;
   }
 }
 
