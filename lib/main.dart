@@ -590,18 +590,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               )
             else
-              ..._holdings.values.map((h) {
-                final stock = kAllStocks
-                    .where((s) => s.symbol == h.symbol)
-                    .firstOrNull;
-                // Prefer live Alpaca price; fall back to catalog then avg
-                // cost so the row still renders if the network is down.
-                final price = _livePrices[h.symbol] ?? stock?.price ?? h.avgCost;
-                final value = h.quantity * price;
-                final gain  = h.unrealizedGain(price);
-                final pos   = gain >= 0;
-                return _holdingRow(h, price, value, gain, pos);
-              }),
+              ..._holdingsGroupedByClass(),
             // Cash daily tip
             const SizedBox(height: 8),
             _cashTipCard(),
@@ -663,6 +652,67 @@ class _DashboardPageState extends State<DashboardPage> {
           ],
         ),
       );
+
+  /// Group holdings into per-asset-class sections: Stocks → ETFs → Crypto.
+  /// Sections with zero holdings are omitted entirely. Within a section,
+  /// holdings keep their original insertion order from [_holdings] (which
+  /// mirrors the backend response order), so grouping is purely additive —
+  /// it does not re-sort.
+  ///
+  /// Applies to every portfolio surfaced on this dashboard: the user's main
+  /// portfolio and any contest portfolio reached via the switcher both load
+  /// into the same [_holdings] map, so grouping happens by construction
+  /// without a per-view conditional.
+  List<Widget> _holdingsGroupedByClass() {
+    final widgets = <Widget>[];
+    for (final ac in AssetClass.values) {
+      final group = _holdings.values.where((h) => h.assetClass == ac).toList();
+      if (group.isEmpty) continue;
+      widgets.add(_holdingsSectionHeader(ac, group.length));
+      for (final h in group) {
+        final stock = kAllStocks
+            .where((s) => s.symbol == h.symbol)
+            .firstOrNull;
+        // Prefer live Alpaca price; fall back to catalog then avg cost so
+        // the row still renders if the network is down.
+        final price = _livePrices[h.symbol] ?? stock?.price ?? h.avgCost;
+        final value = h.quantity * price;
+        final gain  = h.unrealizedGain(price);
+        final pos   = gain >= 0;
+        widgets.add(_holdingRow(h, price, value, gain, pos));
+      }
+    }
+    return widgets;
+  }
+
+  /// Tiny header for one asset-class group on the holdings list.
+  /// Chip + label + count, intentionally lighter weight than the parent
+  /// "Your Holdings" h2 so the visual hierarchy is: page → holdings →
+  /// section.
+  Widget _holdingsSectionHeader(AssetClass ac, int count) {
+    final label = switch (ac) {
+      AssetClass.stock => 'Stocks',
+      AssetClass.etf => 'ETFs',
+      AssetClass.crypto => 'Crypto',
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 6, left: 2),
+      child: Row(
+        children: [
+          AssetClassChip(assetClass: ac),
+          const SizedBox(width: 8),
+          Text(
+            '$label ($count)',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF555555),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _holdingRow(
       Holding h, double price, double value, double gain, bool pos) {
