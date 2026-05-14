@@ -13,47 +13,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../models/asset_class.dart';
+import '../../models/holding.dart';
 import '../api/api_service.dart';
 import '../notification/notification_service.dart';
-
-// ── Models ────────────────────────────────────────────────────────────────────
-
-class Holding {
-  final String symbol;
-  final String name;
-  final double quantity;
-  final double avgCost;
-  final AssetClass assetClass;
-
-  const Holding({
-    required this.symbol,
-    required this.name,
-    required this.quantity,
-    required this.avgCost,
-    this.assetClass = AssetClass.stock,
-  });
-
-  /// Parse a holding from a backend position payload. The backend writes
-  /// uppercase asset-class values (`STOCK`/`ETF`/`CRYPTO`); [AssetClassParse.fromString]
-  /// tolerates any case and returns null on unknown input, so this falls
-  /// back to [AssetClass.stock] when the field is missing, null, or
-  /// unrecognized.
-  factory Holding.fromJson(Map<String, dynamic> json) {
-    final symbol = (json['symbol'] as String?) ?? '';
-    return Holding(
-      symbol: symbol,
-      name: (json['name'] as String?) ?? symbol,
-      quantity: PortfolioService._num(json['quantity']) ?? 0.0,
-      avgCost: PortfolioService._num(json['purchase_price']) ?? 0.0,
-      assetClass:
-          AssetClassParse.fromString(json['asset_class']) ?? AssetClass.stock,
-    );
-  }
-
-  double marketValue(double currentPrice) => quantity * currentPrice;
-  double unrealizedGain(double currentPrice) => (currentPrice - avgCost) * quantity;
-}
 
 // ── Service ───────────────────────────────────────────────────────────────────
 

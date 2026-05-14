@@ -13,6 +13,7 @@ import 'pages/notifications/notifications_page.dart';
 import 'pages/groups/groups_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'services/portfolio/portfolio_service.dart';
+import 'models/holding.dart';
 import 'services/notification/notification_service.dart';
 import 'services/group/group_service.dart';
 import 'services/api/api_service.dart';

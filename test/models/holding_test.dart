@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:beanstalk/models/asset_class.dart';
-import 'package:beanstalk/services/portfolio/portfolio_service.dart';
+import 'package:beanstalk/models/holding.dart';
 
 void main() {
   // Shared base payload — tests vary only the asset_class field. Pass
