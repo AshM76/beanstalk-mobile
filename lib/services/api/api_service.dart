@@ -383,6 +383,28 @@ class ApiService {
     return ApiResult.ok((r.data as Map).cast<String, dynamic>());
   }
 
+  // ── AI Advisor endpoints ─────────────────────────────────────────────────
+
+  /// GET /api/ai/status → daily AI-advisor usage state for the current user.
+  /// Backend shape: `{remaining, isPremium, usedToday}` (with snake_case
+  /// fallbacks tolerated by the caller).
+  Future<ApiResult<Map<String, dynamic>>> getAiStatus() async {
+    final r = await _get('/api/ai/status');
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    return ApiResult.ok((r.data as Map).cast<String, dynamic>());
+  }
+
+  /// POST /api/ai/chat → next assistant reply for the running conversation.
+  /// 429 propagates up so the caller can distinguish rate-limit from other
+  /// failures.
+  Future<ApiResult<Map<String, dynamic>>> sendAiChat(
+    List<Map<String, dynamic>> messages,
+  ) async {
+    final r = await _post('/api/ai/chat', {'messages': messages});
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    return ApiResult.ok((r.data as Map).cast<String, dynamic>());
+  }
+
   // ── Utilities ────────────────────────────────────────────────────────────
 
   // RFC 4122 v4 UUID using Random.secure(). Avoids pulling in the `uuid`

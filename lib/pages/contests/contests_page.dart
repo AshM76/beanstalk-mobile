@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
 import '../../utils/contest_color.dart';
+import '../../widgets/cash_advisor_sheet.dart';
 import '../stocks/stock_search_page.dart';
 
 final _contestCurrency = NumberFormat('#,##0', 'en_US');
@@ -1195,6 +1196,57 @@ class _DetailsTab extends StatelessWidget {
               if (contest.status == ContestStatus.upcoming)
                 _CountdownTimer(endDate: contest.startDate, color: color, label: 'Starts in'),
             ],
+          ),
+        ),
+
+        // Ask Cash — strategy entry point. Sits directly below the prize/
+        // countdown block so it's the first action surface a user sees
+        // after taking in the contest's stakes.
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A2E1A),
+            border: Border.all(
+              color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: ListTile(
+            onTap: () {
+              final daysLeft =
+                  contest.endDate.difference(DateTime.now()).inDays;
+              final timeRem = (contest.status == ContestStatus.ended ||
+                      daysLeft <= 0)
+                  ? 'ending soon'
+                  : daysLeft == 1
+                      ? '1 day left'
+                      : '$daysLeft days left';
+              showCashAdvisor(
+                context,
+                seedMessage:
+                    "I'm in the '${contest.title}' contest with $timeRem. "
+                    "What should I buy with my virtual cash to have the "
+                    "best shot at climbing the leaderboard?",
+              );
+            },
+            leading: const Text('🌱', style: TextStyle(fontSize: 22)),
+            title: const Text(
+              'Ask Cash for contest strategy',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+            subtitle: const Text(
+              'Get AI-powered ideas for this contest',
+              style: TextStyle(color: Color(0xFF4ADE80), fontSize: 12),
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFF2E7D32),
+              size: 14,
+            ),
           ),
         ),
 

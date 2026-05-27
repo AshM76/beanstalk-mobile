@@ -6,6 +6,7 @@ import '../../models/asset_class.dart';
 import '../../services/market/market_service.dart';
 import '../../widgets/asset_class_chip.dart';
 import '../../widgets/asset_class_filter.dart';
+import '../../widgets/cash_advisor_sheet.dart';
 
 final _stockCurrency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
@@ -304,6 +305,23 @@ class _StockSearchPageState extends State<StockSearchPage> {
             child: _query.isEmpty ? _buildPopular() : _buildResults(),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF2E7D32),
+        foregroundColor: Colors.white,
+        icon: const Text('🌱', style: TextStyle(fontSize: 16)),
+        label: const Text('Ask Cash',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        onPressed: () {
+          final q = _query.trim();
+          showCashAdvisor(
+            context,
+            seedMessage: q.isEmpty
+                ? null
+                : "I'm looking at '$q' — can you give me ideas around it "
+                  "or similar stocks or ETFs?",
+          );
+        },
       ),
     );
   }

@@ -22,6 +22,7 @@ import 'utils/contest_color.dart';
 import 'data/cash_tips.dart';
 import 'pages/auth/login_page.dart';
 import 'widgets/asset_class_chip.dart';
+import 'widgets/cash_advisor_sheet.dart';
 import 'models/asset_class.dart';
 
 void main() async {
@@ -592,6 +593,11 @@ class _DashboardPageState extends State<DashboardPage> {
               )
             else
               ..._holdingsGroupedByClass(),
+            // Ask Cash CTA — sits directly above the daily tip so the two
+            // "Cash" surfaces form a single cluster (action first, then
+            // passive tip).
+            const SizedBox(height: 8),
+            _askCashCard(),
             // Cash daily tip
             const SizedBox(height: 8),
             _cashTipCard(),
@@ -792,6 +798,54 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ]),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _askCashCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFA5D6A7), width: 1),
+      ),
+      child: ListTile(
+        onTap: () {
+          final hasCash = _cash > 0;
+          // Whole-dollar formatting per spec ("$3,200", no decimals).
+          // decimalDigits: 0 also handles thousands separator via locale.
+          final amt = hasCash
+              ? NumberFormat.currency(
+                  locale: 'en_US', symbol: '\$', decimalDigits: 0)
+                  .format(_cash)
+              : null;
+          showCashAdvisor(
+            context,
+            seedMessage: hasCash
+                ? "I have $amt in virtual cash available. "
+                  "Where should I put it?"
+                : null,
+          );
+        },
+        leading: const Text('🌱', style: TextStyle(fontSize: 22)),
+        title: const Text(
+          'Ask Cash',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        subtitle: const Text(
+          'AI ideas for your virtual cash',
+          style: TextStyle(color: Color(0xFF2E7D32), fontSize: 12),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          color: Color(0xFF2E7D32),
+          size: 14,
         ),
       ),
     );
