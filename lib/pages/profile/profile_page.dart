@@ -447,6 +447,14 @@ class ProfilePageState extends State<ProfilePage> {
 
   Future<void> _logout() async {
     await ApiService().logout();
+    // Clear the device-global display name on logout so the NEXT user
+    // signing in on this device sees their real name from the auth
+    // response, not whatever the previous user typed into the Display
+    // Name field. (Display name is currently device-scoped in
+    // SharedPreferences under 'profile_display_name' with no per-user
+    // namespacing — see _editDisplayName below.)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('profile_display_name');
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginPage()),
