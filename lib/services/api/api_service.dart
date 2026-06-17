@@ -85,6 +85,24 @@ class ApiService {
   /// Set the authenticated user. Call from a real login flow when it exists.
   Future<void> setAuth({required String userId, String? jwt, String? name}) async {
     final p = await SharedPreferences.getInstance();
+
+    // If a *different* identity is signing in than the one previously
+    // persisted, clear the device-global `profile_display_name` so the new
+    // user falls through to their real auth-response name instead of
+    // inheriting the previous user's hand-edited nickname. The in-app
+    // Logout button already does this on its own (see profile_page.dart
+    // `_logout`), but that path is bypassed by:
+    //   - kDebugMode auth wipes in main.dart (clears the JWT + userId but
+    //     leaves profile_display_name behind),
+    //   - any "sign in as someone else" flow that doesn't go through
+    //     Logout first.
+    // We only clear when the userId actually changed; same-user re-logins
+    // keep their custom display name.
+    final priorUserId = p.getString(_kUserIdKey);
+    if (priorUserId == null || priorUserId.isEmpty || priorUserId != userId) {
+      await p.remove('profile_display_name');
+    }
+
     _userId = userId;
     _jwt = jwt;
     _userName = name;
