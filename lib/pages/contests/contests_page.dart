@@ -141,7 +141,13 @@ class Contest {
       title: (m['name'] as String?) ?? 'Contest',
       description: (m['description'] as String?) ?? '',
       prize: prize,
-      baseParticipants: parseInt(m['current_participants'], 0),
+      // GET /api/contests returns total enrollment under `participants` (an
+      // int = sum of all rankings across every age group). Older builds read
+      // `current_participants`, which the list endpoint doesn't send — that's
+      // why cards showed "0 players". Prefer `participants`, fall back to the
+      // legacy key, then 0.
+      baseParticipants:
+          parseInt(m['participants'] ?? m['current_participants'], 0),
       maxParticipants: parseInt(m['max_participants'], 100),
       startDate: parseDt(m['start_date']),
       endDate: parseDt(m['end_date'], fallback: DateTime.now().add(const Duration(days: 30))),
