@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
+import '../../services/contest/contest_service.dart';
 import '../../utils/contest_color.dart';
 import '../../widgets/cash_advisor_sheet.dart';
 import '../stocks/stock_search_page.dart';
@@ -176,6 +177,70 @@ class LeaderboardEntry {
     required this.portfolioValue,
     this.isCurrentUser = false,
   });
+
+  /// Parse a single ranking entry from the backend leaderboard payload
+  /// (one element of `leaderboards.<age_group>.rankings`). The `rank` here is
+  /// the per-group rank as the backend returned it; callers that merge age
+  /// groups re-rank the combined list (see [copyWith]).
+  ///
+  /// Backend data-quality note: `username` currently comes back as a raw UUID.
+  /// We don't fix that server-side tonight — instead [_displayName] renders a
+  /// friendly "Player abc123…" fallback so the board doesn't read like a
+  /// database dump.
+  factory LeaderboardEntry.fromJson(
+    Map<String, dynamic> j, {
+    String? currentUserId,
+  }) {
+    final userId = (j['user_id'] as String?) ?? '';
+    final rawName = (j['username'] as String?) ?? '';
+
+    double toD(Object? v) =>
+        v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
+    int toI(Object? v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
+
+    return LeaderboardEntry(
+      rank: toI(j['rank']),
+      username: _displayName(rawName, userId),
+      avatarEmoji: _avatarEmojiFor(userId.isNotEmpty ? userId : rawName),
+      returnPercent: toD(j['return_percent']),
+      portfolioValue: toD(j['portfolio_value']),
+      isCurrentUser:
+          currentUserId != null && userId.isNotEmpty && userId == currentUserId,
+    );
+  }
+
+  LeaderboardEntry copyWith({int? rank}) => LeaderboardEntry(
+        rank: rank ?? this.rank,
+        username: username,
+        avatarEmoji: avatarEmoji,
+        returnPercent: returnPercent,
+        portfolioValue: portfolioValue,
+        isCurrentUser: isCurrentUser,
+      );
+
+  /// A username that looks like a UUID (has hyphens and is 32+ chars) is a raw
+  /// backend id, not a real handle — show "Player abc123…" instead.
+  static bool _looksLikeUuid(String s) => s.contains('-') && s.length >= 32;
+
+  static String _displayName(String rawName, String userId) {
+    if (rawName.isNotEmpty && !_looksLikeUuid(rawName)) return rawName;
+    final seed = userId.isNotEmpty ? userId : rawName;
+    final short = seed.replaceAll('-', '');
+    if (short.isEmpty) return 'Player';
+    return 'Player ${short.substring(0, short.length < 6 ? short.length : 6)}…';
+  }
+
+  /// Deterministic avatar emoji so a given player keeps the same face across
+  /// refreshes without the backend supplying one.
+  static String _avatarEmojiFor(String seed) {
+    const faces = ['🦊', '🐻', '🐼', '🦁', '🐯', '🐨', '🐸', '🦉', '🐧', '🦄'];
+    if (seed.isEmpty) return faces.first;
+    var h = 0;
+    for (final c in seed.codeUnits) {
+      h = (h * 31 + c) & 0x7fffffff;
+    }
+    return faces[h % faces.length];
+  }
 }
 
 class ChatMessage {
@@ -1411,25 +1476,106 @@ class _TimeBox extends StatelessWidget {
 
 // ── Leaderboard Tab ───────────────────────────────────────────────────────────
 
-class _LeaderboardTab extends StatelessWidget {
+class _LeaderboardTab extends StatefulWidget {
   final Contest contest;
   final Color color;
   const _LeaderboardTab({required this.contest, required this.color});
 
   @override
+  State<_LeaderboardTab> createState() => _LeaderboardTabState();
+}
+
+class _LeaderboardTabState extends State<_LeaderboardTab> {
+  Contest get contest => widget.contest;
+  Color get color => widget.color;
+
+  bool _loading = true;
+  bool _error = false;
+  String? _errorMessage;
+  List<LeaderboardEntry> _entries = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load({bool forceRefresh = false}) async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = false;
+      });
+    }
+    final r = await ContestService.fetchLeaderboard(
+      contest.id,
+      forceRefresh: forceRefresh,
+    );
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (r.isOk) {
+        _entries = r.data ?? const [];
+        _error = false;
+        _errorMessage = null;
+      } else {
+        _error = true;
+        _errorMessage = r.error;
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (contest.leaderboard.isEmpty) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            const Text('Couldn’t load the leaderboard',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(
+              _errorMessage ?? 'Check your connection and try again.',
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: () => _load(forceRefresh: true),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: color),
+                foregroundColor: color,
+              ),
+              child: const Text('Retry'),
+            ),
+          ]),
+        ),
+      );
+    }
+
+    if (_entries.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('📋', style: TextStyle(fontSize: 48)),
           const SizedBox(height: 12),
-          const Text('Leaderboard not yet available',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text(
+            contest.status == ContestStatus.upcoming
+                ? 'Leaderboard not yet available'
+                : 'No rankings yet',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 4),
           Text(
             contest.status == ContestStatus.upcoming
                 ? 'Rankings appear once the contest begins'
-                : 'No data available',
+                : 'Be the first to trade!',
             style: const TextStyle(color: Colors.grey),
             textAlign: TextAlign.center,
           ),
@@ -1437,10 +1583,13 @@ class _LeaderboardTab extends StatelessWidget {
       );
     }
 
-    final entries = contest.leaderboard;
+    final entries = _entries;
     final userEntry = entries.where((e) => e.isCurrentUser).firstOrNull;
 
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: () => _load(forceRefresh: true),
+      color: color,
+      child: ListView(
       padding: const EdgeInsets.all(16),
       children: [
         // Top 3 podium
@@ -1481,6 +1630,7 @@ class _LeaderboardTab extends StatelessWidget {
         ],
         const SizedBox(height: 24),
       ],
+      ),
     );
   }
 }
