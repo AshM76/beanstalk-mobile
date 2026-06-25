@@ -387,6 +387,20 @@ class ApiService {
     return ApiResult.ok(raw.map((c) => (c as Map).cast<String, dynamic>()).toList());
   }
 
+  /// GET /api/contests/:contestId/leaderboard
+  ///
+  /// Returns the age-group-keyed leaderboard payload:
+  ///   { contest_id, leaderboards: { high_school: { rankings:[...] },
+  ///     college: {...}, adults: {...} } }
+  /// Each rankings entry carries rank, user_id, username, portfolio_value and
+  /// return_percent. Parsing/merging of the age groups is the caller's job
+  /// (see ContestService.fetchLeaderboard).
+  Future<ApiResult<Map<String, dynamic>>> getLeaderboard(String contestId) async {
+    final r = await _get('/api/contests/$contestId/leaderboard');
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    return ApiResult.ok((r.data as Map).cast<String, dynamic>());
+  }
+
   /// POST /api/contests/:contestId/join
   Future<ApiResult<Map<String, dynamic>>> joinContest(
     String userId,
