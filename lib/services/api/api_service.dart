@@ -22,6 +22,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../config/app_config.dart';
+
 /// Result of an API call. Either a success with parsed payload, or a failure
 /// with a human-readable error message. Mirrors the `null == ok, String == err`
 /// contract that PortfolioService.buy/sell originally used.
@@ -41,10 +43,12 @@ class ApiResult<T> {
 class ApiService {
   // ── Configuration ────────────────────────────────────────────────────────
   //
-  // Android emulator: use http://10.0.2.2:8080
-  // iOS simulator:   http://localhost:8080 works
-  // Physical device: substitute the dev machine's LAN IP
-  static const String _defaultBaseUrl = 'https://beanstalk-api.fly.dev';
+  // Base URL comes from AppConfig (the single source of truth), which reads
+  // --dart-define=API_BASE_URL and defaults to the production Fly.io host.
+  // Override at runtime via init(baseUrlOverride:) — used by tests. For local
+  // development, pass --dart-define=API_BASE_URL=http://localhost:8080
+  // (start-demo.sh does this automatically).
+  static const String _defaultBaseUrl = AppConfig.apiBaseUrl;
 
   static const _kUserIdKey = 'api_user_id';
   static const _kJwtKey = 'api_jwt';

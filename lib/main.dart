@@ -44,12 +44,11 @@ void main() async {
   }
 
   // Load/persist the device-scoped userId + any cached JWT before any
-  // service touches the API. Respect --dart-define=API_BASE_URL=... so the
-  // demo startup script can point the sim at a local API.
-  const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
-  await ApiService().init(
-    baseUrlOverride: apiBaseUrl.isEmpty ? null : apiBaseUrl,
-  );
+  // service touches the API. The base URL is resolved from AppConfig (the
+  // single source of truth: --dart-define=API_BASE_URL, defaulting to the
+  // production Fly.io host), so no override is needed here — ApiService
+  // already reads AppConfig.apiBaseUrl by default.
+  await ApiService().init();
   runApp(const BeanstalkApp());
 }
 
