@@ -25,6 +25,12 @@ import 'widgets/asset_class_chip.dart';
 import 'widgets/cash_advisor_sheet.dart';
 import 'models/asset_class.dart';
 
+/// Context-free navigation + messaging, so ApiService can bounce an expired
+/// session to login (and toast) without holding a BuildContext.
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([
@@ -49,6 +55,18 @@ void main() async {
   // production Fly.io host), so no override is needed here — ApiService
   // already reads AppConfig.apiBaseUrl by default.
   await ApiService().init();
+
+  // When any protected call 401s (expired/invalid token), ApiService clears
+  // the session and calls this: tell the user, then reset the nav stack to
+  // login. pushNamedAndRemoveUntil lands on login exactly once, so this is
+  // safe even if it's already showing.
+  ApiService().onUnauthorized = () {
+    scaffoldMessengerKey.currentState?.showSnackBar(
+      const SnackBar(content: Text('Session expired — please sign in again.')),
+    );
+    navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
+  };
+
   runApp(const BeanstalkApp());
 }
 
@@ -58,6 +76,8 @@ class BeanstalkApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Beanstalk',
+      navigatorKey: navigatorKey,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

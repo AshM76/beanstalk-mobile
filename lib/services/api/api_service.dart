@@ -65,6 +65,16 @@ class ApiService {
   String? _userName;
   bool _initialized = false;
 
+  /// Invoked when a protected request returns 401 (missing/expired/invalid
+  /// token). main.dart wires this up to clear the UI and route back to login.
+  /// Left null in tests / headless use.
+  void Function()? onUnauthorized;
+  bool _handlingUnauthorized = false;
+
+  /// Public auth routes — a 401 here means bad credentials, not an expired
+  /// session, so it must NOT trigger the sign-out/redirect handler.
+  static const _publicAuthPaths = {'/api/auth/login', '/api/auth/register'};
+
   String get baseUrl => _baseUrl;
 
   /// Must be called once at app start (e.g. in main()) before using other
@@ -110,6 +120,8 @@ class ApiService {
     _userId = userId;
     _jwt = jwt;
     _userName = name;
+    // A fresh sign-in re-arms the 401 handler for the new session.
+    _handlingUnauthorized = false;
     await p.setString(_kUserIdKey, userId);
     if (jwt != null) {
       await p.setString(_kJwtKey, jwt);
@@ -221,7 +233,7 @@ class ApiService {
   }) async {
     try {
       final resp = await http.get(_url(path, query), headers: _headers).timeout(timeout);
-      return _parse(resp);
+      return _parse(resp, path);
     } on TimeoutException {
       return const ApiResult.fail('Network timeout');
     } catch (e) {
@@ -238,7 +250,7 @@ class ApiService {
       final resp = await http
           .post(_url(path), headers: _headers, body: jsonEncode(body ?? {}))
           .timeout(timeout);
-      return _parse(resp);
+      return _parse(resp, path);
     } on TimeoutException {
       return const ApiResult.fail('Network timeout');
     } catch (e) {
@@ -246,7 +258,7 @@ class ApiService {
     }
   }
 
-  ApiResult<dynamic> _parse(http.Response resp) {
+  ApiResult<dynamic> _parse(http.Response resp, String path) {
     dynamic decoded;
     try {
       decoded = resp.body.isEmpty ? null : jsonDecode(resp.body);
@@ -257,6 +269,15 @@ class ApiService {
     if (resp.statusCode >= 200 && resp.statusCode < 300) {
       return ApiResult.ok(decoded);
     }
+
+    // A 401 on a protected route means the token is missing/expired/invalid
+    // (the API uses 403 for permission/ownership, so this is unambiguous).
+    // Clear the session and bounce to login. Public auth routes are excluded —
+    // a 401 there is bad credentials and is surfaced inline by the caller.
+    if (resp.statusCode == 401 && !_publicAuthPaths.contains(path)) {
+      _handleUnauthorized();
+    }
+
     String errMsg;
     if (decoded is Map && decoded['error'] is String) {
       errMsg = decoded['error'] as String;
@@ -266,6 +287,15 @@ class ApiService {
       errMsg = 'HTTP ${resp.statusCode}';
     }
     return ApiResult.fail(errMsg, statusCode: resp.statusCode);
+  }
+
+  /// Handle an expired/invalid session. Guarded so a burst of concurrent 401s
+  /// triggers a single sign-out + redirect; re-armed on the next setAuth().
+  Future<void> _handleUnauthorized() async {
+    if (_handlingUnauthorized) return;
+    _handlingUnauthorized = true;
+    await logout();
+    onUnauthorized?.call();
   }
 
   // ── Portfolio endpoints ──────────────────────────────────────────────────
