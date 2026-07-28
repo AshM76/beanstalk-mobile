@@ -2,7 +2,7 @@ name: beanstalk
 description: Learn investing, trade virtually, compete with friends
 
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -28,9 +28,6 @@ dependencies:
   # UI
   shimmer: ^3.0.0
   flutter_svg: ^2.0.9
-
-  # Sharing
-  share_plus: ^7.2.1
 
   # Icons & Splash
   flutter_launcher_icons: ^0.13.1
