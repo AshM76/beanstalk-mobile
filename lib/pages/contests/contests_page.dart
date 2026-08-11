@@ -1140,34 +1140,6 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           ),
         ],
       ),
-      // "Trade Stocks" FAB only shows when the user has joined AND the
-      // contest is active. Trading in an upcoming contest makes no sense
-      // (market hasn't opened for it); trading in an ended contest is a
-      // backend 4xx.
-      floatingActionButton: (_joined && c.status == ContestStatus.active)
-          ? FloatingActionButton.extended(
-              backgroundColor: _color,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.trending_up),
-              label: const Text('Trade Stocks',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () {
-                debugPrint(
-                  '[ContestDetail] TradeStocks FAB '
-                  'contestId=${c.id} contestName=${c.title}',
-                );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StockSearchPage(
-                      contestId: c.id,
-                      contestName: c.title,
-                    ),
-                  ),
-                );
-              },
-            )
-          : null,
       bottomNavigationBar: _buildBottomBar(),
     );
   }
@@ -1182,9 +1154,56 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           color: Colors.white,
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, -2))],
         ),
-        child: c.status == ContestStatus.upcoming
-            ? _notifyButton()
-            : _joinButton(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // "Trade Stocks" lives in the bottom bar (not a FAB) so it can
+            // never overlap the chat input or leaderboard rows. Only shown
+            // when the user has joined AND the contest is active: trading in
+            // an upcoming contest makes no sense (market hasn't opened for
+            // it); trading in an ended contest is a backend 4xx.
+            if (_joined && c.status == ContestStatus.active) ...[
+              _tradeStocksButton(),
+              const SizedBox(height: 8),
+            ],
+            c.status == ContestStatus.upcoming
+                ? _notifyButton()
+                : _joinButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tradeStocksButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          debugPrint(
+            '[ContestDetail] TradeStocks '
+            'contestId=${c.id} contestName=${c.title}',
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StockSearchPage(
+                contestId: c.id,
+                contestName: c.title,
+              ),
+            ),
+          );
+        },
+        icon: const Icon(Icons.trending_up),
+        label: const Text('Trade Stocks',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _color,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
       ),
     );
   }
