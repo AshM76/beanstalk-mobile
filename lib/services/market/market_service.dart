@@ -19,8 +19,10 @@ import '../api/api_service.dart';
 
 class MarketService {
   static const _ttl = Duration(seconds: 15);
+  static const _searchTtl = Duration(minutes: 5);
 
   static final Map<String, _CachedPrice> _cache = {};
+  static final Map<String, _CachedSearch> _searchCache = {};
 
   static ApiService get _api => ApiService();
 
@@ -91,18 +93,34 @@ class MarketService {
   /// `{symbol, name, asset_class, ...}` where `asset_class` is `'STOCK' |
   /// 'ETF' | 'CRYPTO'`. Client-side filter because the backend endpoint
   /// does not currently take an `asset_class` query param.
+  ///
+  /// Raw (unfiltered) results are cached per query string: each backend call
+  /// scans the full Alpaca asset universe, so retyping a query or toggling
+  /// the asset-class filter shouldn't re-hit it. The filter is applied after
+  /// the cache so one cached entry serves every filter state.
   static Future<List<Map<String, dynamic>>> searchTickers(
     String query, {
     AssetClass? filter,
   }) async {
     if (query.isEmpty) return const [];
-    final r = await _api.searchMarket(query);
-    if (!r.isOk || r.data == null) {
-      debugPrint('[MarketService.searchTickers] $query → ${r.error}');
-      return const [];
+    final key = query.trim().toUpperCase();
+
+    List<Map<String, dynamic>> results;
+    final cached = _searchCache[key];
+    if (cached != null && !cached.isStale) {
+      results = cached.results;
+    } else {
+      final r = await _api.searchMarket(query);
+      if (!r.isOk || r.data == null) {
+        debugPrint('[MarketService.searchTickers] $query → ${r.error}');
+        return const [];
+      }
+      results = r.data!;
+      _searchCache[key] = _CachedSearch(results, DateTime.now());
     }
-    if (filter == null) return r.data!;
-    return r.data!
+
+    if (filter == null) return results;
+    return results
         .where((m) => AssetClassParse.fromString(m['asset_class']) == filter)
         .toList();
   }
@@ -131,4 +149,12 @@ class _CachedPrice {
   _CachedPrice(this.price, this.fetchedAt);
   bool get isStale =>
       DateTime.now().difference(fetchedAt) > MarketService._ttl;
+}
+
+class _CachedSearch {
+  final List<Map<String, dynamic>> results;
+  final DateTime fetchedAt;
+  _CachedSearch(this.results, this.fetchedAt);
+  bool get isStale =>
+      DateTime.now().difference(fetchedAt) > MarketService._searchTtl;
 }

@@ -60,6 +60,36 @@ const kAllStocks = [
 
 const _popularSymbols = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY', 'AMZN', 'META', 'GOOGL'];
 
+/// Rank merged search results so the best symbol match for [query] surfaces
+/// first, in four tiers:
+///   0 — exact symbol match       ("T"   → AT&T)
+///   1 — symbol starts with query ("AAP" → AAPL after exact AAP)
+///   2 — name starts with query
+///   3 — remaining substring matches
+/// The sort is stable: rows keep their incoming order within a tier (catalog
+/// order for local rows, backend relevance for remote rows). Top-level and
+/// pure so tests can exercise it without a widget tree.
+List<StockItem> rankSearchResults(List<StockItem> merged, String query) {
+  final q = query.trim().toUpperCase();
+  if (q.isEmpty || merged.length < 2) return merged;
+
+  int tier(StockItem s) {
+    final sym = s.symbol.toUpperCase();
+    if (sym == q) return 0;
+    if (sym.startsWith(q)) return 1;
+    if (s.name.toUpperCase().startsWith(q)) return 2;
+    return 3;
+  }
+
+  // List.sort isn't stable — decorate with the original index to break ties.
+  final indexed = merged.asMap().entries.toList()
+    ..sort((a, b) {
+      final byTier = tier(a.value).compareTo(tier(b.value));
+      return byTier != 0 ? byTier : a.key.compareTo(b.key);
+    });
+  return [for (final e in indexed) e.value];
+}
+
 // ── Stock Search Page ────────────────────────────────────────────────────────
 
 class StockSearchPage extends StatefulWidget {
@@ -147,15 +177,19 @@ class _StockSearchPageState extends State<StockSearchPage> {
         .toList();
   }
 
-  /// Combined: local first, then remote (de-duped).
+  /// Combined local + remote, de-duped by symbol (local entry wins — it
+  /// carries sector/change metadata), then ranked so the best symbol match
+  /// surfaces first regardless of source. Without the ranking, local catalog
+  /// rows always preceded remote rows, so an exact ticker the catalog doesn't
+  /// carry (e.g. "T" → AT&T) was buried under a dozen symbols that merely
+  /// contain the letter.
   List<StockItem> get _results {
     final local = _localResults;
-    if (_remoteResults.isEmpty) return local;
     final localSymbols = local.map((s) => s.symbol).toSet();
     final remote = _remoteResults
         .where((s) => !localSymbols.contains(s.symbol))
         .toList();
-    return [...local, ...remote];
+    return rankSearchResults([...local, ...remote], _query);
   }
 
   /// Debounced backend search via GET /api/market/search.
@@ -166,11 +200,12 @@ class _StockSearchPageState extends State<StockSearchPage> {
     });
     _debounce?.cancel();
     if (value.isEmpty) return;
-    // Fire immediately for short terms (likely tickers); debounce longer names
-    final delay = value.length <= 4
-        ? const Duration(milliseconds: 200)
-        : const Duration(milliseconds: 400);
-    _debounce = Timer(delay, () => _searchRemote(value));
+    // ~300ms debounce: short enough to feel live, long enough to keep
+    // backend and quote chatter down while typing.
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _searchRemote(value),
+    );
   }
 
   Future<void> _searchRemote(String query) async {
