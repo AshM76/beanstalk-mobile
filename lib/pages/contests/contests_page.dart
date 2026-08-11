@@ -1138,6 +1138,22 @@ class _ContestDetailPageState extends State<ContestDetailPage>
               ],
             ),
           ),
+          // "Trade Stocks" lives in the body (not the bottom bar) so the
+          // keyboard inset lifts it with the chat input — it stays visible
+          // and tappable while typing. Only shown when the user has joined
+          // AND the contest is active: trading in an upcoming contest makes
+          // no sense (market hasn't opened for it); trading in an ended
+          // contest is a backend 4xx.
+          if (_joined && c.status == ContestStatus.active)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, -1))],
+              ),
+              child: _tradeStocksButton(),
+            ),
         ],
       ),
       bottomNavigationBar: _buildBottomBar(),
@@ -1154,23 +1170,9 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           color: Colors.white,
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, -2))],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // "Trade Stocks" lives in the bottom bar (not a FAB) so it can
-            // never overlap the chat input or leaderboard rows. Only shown
-            // when the user has joined AND the contest is active: trading in
-            // an upcoming contest makes no sense (market hasn't opened for
-            // it); trading in an ended contest is a backend 4xx.
-            if (_joined && c.status == ContestStatus.active) ...[
-              _tradeStocksButton(),
-              const SizedBox(height: 8),
-            ],
-            c.status == ContestStatus.upcoming
-                ? _notifyButton()
-                : _joinButton(),
-          ],
-        ),
+        child: c.status == ContestStatus.upcoming
+            ? _notifyButton()
+            : _joinButton(),
       ),
     );
   }
