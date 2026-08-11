@@ -54,8 +54,25 @@ class ContestService {
     }
 
     final entries = _mergeAndRank(r.data!);
-    _cache[contestId] = _CachedLeaderboard(entries, DateTime.now());
+    _cache[contestId] =
+        _CachedLeaderboard(entries, DateTime.now(), _parseAsOf(r.data!));
     return ApiResult.ok(entries);
+  }
+
+  /// When the standings were computed, for display ("Standings as of …").
+  /// Prefers the backend's `as_of` stamp (set when it repriced portfolios);
+  /// falls back to the client-side fetch time for older backends. Null until
+  /// the first successful fetch for [contestId].
+  static DateTime? lastUpdatedAt(String contestId) {
+    final cached = _cache[contestId];
+    if (cached == null) return null;
+    return cached.asOf ?? cached.fetchedAt;
+  }
+
+  static DateTime? _parseAsOf(Map<String, dynamic> payload) {
+    final raw = payload['as_of'];
+    if (raw is! String) return null;
+    return DateTime.tryParse(raw)?.toLocal();
   }
 
   /// Total enrollment for a contest = number of ranked players across all age
@@ -107,7 +124,8 @@ class ContestService {
 class _CachedLeaderboard {
   final List<LeaderboardEntry> entries;
   final DateTime fetchedAt;
-  _CachedLeaderboard(this.entries, this.fetchedAt);
+  final DateTime? asOf; // backend `as_of` stamp; null on older backends
+  _CachedLeaderboard(this.entries, this.fetchedAt, this.asOf);
   bool get isStale =>
       DateTime.now().difference(fetchedAt) > ContestService._ttl;
 }

@@ -1522,6 +1522,7 @@ class _LeaderboardTabState extends State<_LeaderboardTab> {
   bool _error = false;
   String? _errorMessage;
   List<LeaderboardEntry> _entries = const [];
+  DateTime? _asOf;
 
   @override
   void initState() {
@@ -1545,6 +1546,7 @@ class _LeaderboardTabState extends State<_LeaderboardTab> {
       _loading = false;
       if (r.isOk) {
         _entries = r.data ?? const [];
+        _asOf = ContestService.lastUpdatedAt(contest.id);
         _error = false;
         _errorMessage = null;
       } else {
@@ -1552,6 +1554,40 @@ class _LeaderboardTabState extends State<_LeaderboardTab> {
         _errorMessage = r.error;
       }
     });
+  }
+
+  Widget _asOfStamp(DateTime t) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.schedule, size: 13, color: Colors.grey),
+          const SizedBox(width: 5),
+          Text(
+            'Standings as of ${_formatAsOf(t)}',
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "3:42 PM" for today, "Aug 10, 3:42 PM" otherwise.
+  String _formatAsOf(DateTime t) {
+    final now = DateTime.now();
+    final sameDay =
+        t.year == now.year && t.month == now.month && t.day == now.day;
+    final h12 = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    final mm = t.minute.toString().padLeft(2, '0');
+    final ampm = t.hour < 12 ? 'AM' : 'PM';
+    final time = '$h12:$mm $ampm';
+    if (sameDay) return time;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[t.month - 1]} ${t.day}, $time';
   }
 
   @override
@@ -1621,6 +1657,10 @@ class _LeaderboardTabState extends State<_LeaderboardTab> {
       child: ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // When these standings were computed — refreshed on open and
+        // pull-to-refresh, not a live tick, so say so honestly.
+        if (_asOf != null) _asOfStamp(_asOf!),
+
         // Top 3 podium
         if (entries.length >= 3) _Podium(entries: entries.take(3).toList(), color: color),
         const SizedBox(height: 16),
@@ -1840,11 +1880,6 @@ class _ChatTabState extends State<_ChatTab> {
         msgs.addAll(list.map((e) => ChatMessage.fromJson(Map<String, dynamic>.from(e as Map))));
       } catch (_) {}
     }
-    // Seed with mock messages if empty
-    if (msgs.isEmpty) {
-      msgs.addAll(_seedMessages(widget.contestId));
-      await _saveMessages(msgs);
-    }
     if (!mounted) return;
     setState(() { _messages = msgs; _loading = false; });
     _scrollToBottom();
@@ -1888,12 +1923,20 @@ class _ChatTabState extends State<_ChatTab> {
     return Column(
       children: [
         Expanded(
-          child: ListView.builder(
-            controller: _scroll,
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            itemCount: _messages.length,
-            itemBuilder: (_, i) => _ChatBubble(msg: _messages[i], color: widget.color),
-          ),
+          child: _messages.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No messages yet — say hi! 👋',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                )
+              : ListView.builder(
+                  controller: _scroll,
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  itemCount: _messages.length,
+                  itemBuilder: (_, i) =>
+                      _ChatBubble(msg: _messages[i], color: widget.color),
+                ),
         ),
         Container(
           padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).viewInsets.bottom + 8),
@@ -2010,28 +2053,6 @@ class _ChatBubble extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Seed chat messages ────────────────────────────────────────────────────────
-
-List<ChatMessage> _seedMessages(String contestId) {
-  final base = DateTime.now().subtract(const Duration(hours: 2));
-  final seeds = <Map<String, dynamic>>[
-    {'u': 'TradeMaster99',  't': 'Let\'s go!! 🚀 Top of the board again',        'offset': 0},
-    {'u': 'BullRunner',     't': 'Not for long 😤 I\'m coming for you',           'offset': 8},
-    {'u': 'GrowthHacker',   't': 'NVDA carrying my portfolio rn',                 'offset': 15},
-    {'u': 'DivQueen',       't': 'Slow and steady wins the race 👑',              'offset': 22},
-    {'u': 'TradeMaster99',  't': 'Anyone else holding AAPL? up 2% today',        'offset': 35},
-    {'u': 'ByteTrader',     't': 'I sold too early 😭 classic me',               'offset': 50},
-    {'u': 'ValueVictor',    't': 'Good luck everyone! May the best trader win 🎯','offset': 65},
-    {'u': 'NightTrader',    't': 'After-hours looking spicy tonight 🌙',          'offset': 90},
-  ];
-  return seeds.map((s) => ChatMessage(
-    username: s['u'] as String,
-    text: s['t'] as String,
-    time: base.add(Duration(minutes: s['offset'] as int)),
-    isCurrentUser: false,
-  )).toList();
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
