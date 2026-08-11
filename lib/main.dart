@@ -196,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           const BottomNavigationBarItem(icon: Icon(Icons.home_outlined),           activeIcon: Icon(Icons.home),           label: 'Home'),
           const BottomNavigationBarItem(icon: Icon(Icons.emoji_events_outlined),   activeIcon: Icon(Icons.emoji_events),   label: 'Contests'),
-          const BottomNavigationBarItem(icon: Icon(Icons.search_outlined),         activeIcon: Icon(Icons.search),         label: 'Discover'),
+          const BottomNavigationBarItem(icon: Icon(Icons.search_outlined),         activeIcon: Icon(Icons.search),         label: 'Trade'),
           const BottomNavigationBarItem(icon: Icon(Icons.school_outlined),         activeIcon: Icon(Icons.school),         label: 'Learn'),
           BottomNavigationBarItem(
             icon: _groupCount > 0

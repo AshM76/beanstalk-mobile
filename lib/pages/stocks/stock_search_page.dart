@@ -256,7 +256,7 @@ class _StockSearchPageState extends State<StockSearchPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2E7D32),
         foregroundColor: Colors.white,
-        title: const Text('Discover', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Trade', style: TextStyle(fontWeight: FontWeight.bold)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
