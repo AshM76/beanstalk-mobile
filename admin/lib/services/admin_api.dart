@@ -8,8 +8,11 @@ class AdminApi {
   factory AdminApi() => _instance;
   AdminApi._();
 
-  // Base URL is injected at build time via --dart-define=API_BASE_URL=...
-  // The demo launcher (start-demo.sh) sets this to http://localhost:8080.
+  // Base URL is injected at build time via --dart-define=API_BASE_URL=...,
+  // defaulting to the production Fly.io host below. The demo launcher
+  // (start-demo.sh) overrides it with http://localhost:$API_PORT for local dev.
+  // (The admin console is a separate Flutter package, so it can't share the
+  // main app's lib/config/app_config.dart — it mirrors the same define+default.)
   static const String _baseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'https://beanstalk-api.fly.dev',
