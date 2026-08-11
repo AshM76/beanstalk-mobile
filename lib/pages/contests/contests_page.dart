@@ -656,7 +656,6 @@ class _ContestCard extends StatelessWidget {
   Color get _color => contest.color;
 
   Widget _gradientHeader() => Container(
-        height: 90,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [_color, _color.withValues(alpha: 0.75)],
@@ -695,26 +694,31 @@ class _ContestCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
               child: Stack(
                 children: [
-                  // Background: image or gradient
-                  if (contest.imageUrl != null && contest.imageUrl!.isNotEmpty)
-                    Image.network(
-                      contest.imageUrl!,
-                      height: 90,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _gradientHeader(),
-                    )
-                  else
-                    _gradientHeader(),
-                  // Scrim so text is always readable
-                  Container(
-                    height: contest.imageUrl != null && contest.imageUrl!.isNotEmpty
-                        ? 90
-                        : null,
-                    color: Colors.black.withValues(alpha: 0.25),
+                  // Background: image or gradient. The content column below is
+                  // the Stack's only non-positioned child, so it sets the band
+                  // height and the background always covers the full band —
+                  // the sponsor line can never spill past the colored area.
+                  Positioned.fill(
+                    child: contest.imageUrl != null &&
+                            contest.imageUrl!.isNotEmpty
+                        ? Image.network(
+                            contest.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _gradientHeader(),
+                          )
+                        : _gradientHeader(),
                   ),
-                  // Content
-                  Padding(
+                  // Scrim so text is always readable
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  // Content — minHeight keeps sponsor-less cards at the
+                  // original band height.
+                  Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(minHeight: 90),
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
