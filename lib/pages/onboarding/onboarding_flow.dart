@@ -291,68 +291,78 @@ class _AgePickerPage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 40),
-          const Text('Who are you?',
-              style: TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.w800, color: Colors.black87)),
-          const SizedBox(height: 6),
-          const Text('We\'ll personalise your experience.',
-              style: TextStyle(fontSize: 15, color: Colors.black45)),
-          const SizedBox(height: 32),
-          ...List.generate(_kAgeGroups.length, (i) {
-            final g       = _kAgeGroups[i];
-            final isSelected = selected == g.$2;
-            return GestureDetector(
-              onTap: () => onSelect(g.$2),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                decoration: BoxDecoration(
-                  color:       isSelected ? _kAccent : const Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(16),
-                  border:      Border.all(
-                    color: isSelected ? _kPrimary : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Text(g.$1, style: const TextStyle(fontSize: 28)),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(g.$2,
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: isSelected ? _kPrimary : Colors.black87)),
-                        Text(g.$3,
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.black45)),
-                      ],
+          // Cash's bubble scrolls with the content; the Continue button below
+          // stays pinned regardless of how tall the bubble grows.
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 40),
+                  const Text('Who are you?',
+                      style: TextStyle(
+                          fontSize: 28, fontWeight: FontWeight.w800, color: Colors.black87)),
+                  const SizedBox(height: 6),
+                  const Text('We\'ll personalise your experience.',
+                      style: TextStyle(fontSize: 15, color: Colors.black45)),
+                  const SizedBox(height: 32),
+                  ...List.generate(_kAgeGroups.length, (i) {
+                    final g       = _kAgeGroups[i];
+                    final isSelected = selected == g.$2;
+                    return GestureDetector(
+                      onTap: () => onSelect(g.$2),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          color:       isSelected ? _kAccent : const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(16),
+                          border:      Border.all(
+                            color: isSelected ? _kPrimary : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(g.$1, style: const TextStyle(fontSize: 28)),
+                            const SizedBox(width: 16),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(g.$2,
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: isSelected ? _kPrimary : Colors.black87)),
+                                Text(g.$3,
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.black45)),
+                              ],
+                            ),
+                            const Spacer(),
+                            if (isSelected)
+                              const Icon(Icons.check_circle_rounded,
+                                  color: _kPrimary, size: 22),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  if (selected.isNotEmpty) ...[
+                    CashBubble(
+                      message: CashTips.ageGroupComments[selected] ??
+                          "Great choice! Every investor starts somewhere. Let's find your style!",
+                      mood: CashMood.happy,
                     ),
-                    const Spacer(),
-                    if (isSelected)
-                      const Icon(Icons.check_circle_rounded,
-                          color: _kPrimary, size: 22),
                   ],
-                ),
+                ],
               ),
-            );
-          }),
-          const Spacer(),
-          if (selected.isNotEmpty) ...[
-            CashBubble(
-              message: CashTips.ageGroupComments[selected] ??
-                  "Great choice! Every investor starts somewhere. Let's find your style!",
-              mood: CashMood.happy,
             ),
-            const SizedBox(height: 8),
-          ],
+          ),
+          const SizedBox(height: 8),
           _PrimaryButton(
             label: 'Continue',
             onTap: onNext,
