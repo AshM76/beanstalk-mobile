@@ -656,7 +656,6 @@ class _ContestCard extends StatelessWidget {
   Color get _color => contest.color;
 
   Widget _gradientHeader() => Container(
-        height: 90,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [_color, _color.withValues(alpha: 0.75)],
@@ -695,26 +694,31 @@ class _ContestCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
               child: Stack(
                 children: [
-                  // Background: image or gradient
-                  if (contest.imageUrl != null && contest.imageUrl!.isNotEmpty)
-                    Image.network(
-                      contest.imageUrl!,
-                      height: 90,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _gradientHeader(),
-                    )
-                  else
-                    _gradientHeader(),
-                  // Scrim so text is always readable
-                  Container(
-                    height: contest.imageUrl != null && contest.imageUrl!.isNotEmpty
-                        ? 90
-                        : null,
-                    color: Colors.black.withValues(alpha: 0.25),
+                  // Background: image or gradient. The content column below is
+                  // the Stack's only non-positioned child, so it sets the band
+                  // height and the background always covers the full band —
+                  // the sponsor line can never spill past the colored area.
+                  Positioned.fill(
+                    child: contest.imageUrl != null &&
+                            contest.imageUrl!.isNotEmpty
+                        ? Image.network(
+                            contest.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _gradientHeader(),
+                          )
+                        : _gradientHeader(),
                   ),
-                  // Content
-                  Padding(
+                  // Scrim so text is always readable
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  // Content — minHeight keeps sponsor-less cards at the
+                  // original band height.
+                  Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(minHeight: 90),
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1136,34 +1140,6 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           ),
         ],
       ),
-      // "Trade Stocks" FAB only shows when the user has joined AND the
-      // contest is active. Trading in an upcoming contest makes no sense
-      // (market hasn't opened for it); trading in an ended contest is a
-      // backend 4xx.
-      floatingActionButton: (_joined && c.status == ContestStatus.active)
-          ? FloatingActionButton.extended(
-              backgroundColor: _color,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.trending_up),
-              label: const Text('Trade Stocks',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () {
-                debugPrint(
-                  '[ContestDetail] TradeStocks FAB '
-                  'contestId=${c.id} contestName=${c.title}',
-                );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StockSearchPage(
-                      contestId: c.id,
-                      contestName: c.title,
-                    ),
-                  ),
-                );
-              },
-            )
-          : null,
       bottomNavigationBar: _buildBottomBar(),
     );
   }
@@ -1178,9 +1154,56 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           color: Colors.white,
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, -2))],
         ),
-        child: c.status == ContestStatus.upcoming
-            ? _notifyButton()
-            : _joinButton(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // "Trade Stocks" lives in the bottom bar (not a FAB) so it can
+            // never overlap the chat input or leaderboard rows. Only shown
+            // when the user has joined AND the contest is active: trading in
+            // an upcoming contest makes no sense (market hasn't opened for
+            // it); trading in an ended contest is a backend 4xx.
+            if (_joined && c.status == ContestStatus.active) ...[
+              _tradeStocksButton(),
+              const SizedBox(height: 8),
+            ],
+            c.status == ContestStatus.upcoming
+                ? _notifyButton()
+                : _joinButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tradeStocksButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          debugPrint(
+            '[ContestDetail] TradeStocks '
+            'contestId=${c.id} contestName=${c.title}',
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StockSearchPage(
+                contestId: c.id,
+                contestName: c.title,
+              ),
+            ),
+          );
+        },
+        icon: const Icon(Icons.trending_up),
+        label: const Text('Trade Stocks',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _color,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
       ),
     );
   }
