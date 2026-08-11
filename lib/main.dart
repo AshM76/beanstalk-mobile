@@ -435,12 +435,43 @@ class _DashboardPageState extends State<DashboardPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2E7D32),
         foregroundColor: Colors.white,
-        title: Text(
-          _firstName != null && _firstName!.isNotEmpty
-              ? '$_greeting, $_firstName! 🌱'
-              : 'Beanstalk',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        // Taller bar so the greeting can wrap onto two lines without the
+        // first name getting clipped by the title/action width.
+        toolbarHeight: 72,
+        title: _firstName != null && _firstName!.isNotEmpty
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$_greeting,',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  // Safety net: scale very long names down instead of clipping.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '$_firstName! 🌱',
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : const Text(
+                'Beanstalk',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
         actions: [
           Stack(
             clipBehavior: Clip.none,
