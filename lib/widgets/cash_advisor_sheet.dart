@@ -240,10 +240,16 @@ class _CashAdvisorSheetState extends State<CashAdvisorSheet>
 
   Widget _header() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            tooltip: 'Close',
+            icon: const Icon(Icons.close, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 4),
           Container(
             width: 40,
             height: 40,
