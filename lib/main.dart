@@ -346,7 +346,12 @@ class _DashboardPageState extends State<DashboardPage> {
     if (contestsRes.isOk) {
       for (final c in contestsRes.data!) {
         final id = c['contest_id'] as String?;
-        final name = (c['name'] as String?) ?? 'Contest';
+        // Prefer the admin-set short display name; long full names blow up
+        // the switcher chips and the portfolio card header.
+        final shortName = c['short_name'] as String?;
+        final name = (shortName != null && shortName.trim().isNotEmpty)
+            ? shortName.trim()
+            : (c['name'] as String?) ?? 'Contest';
         if (id == null) continue;
         if (prefs.getBool('contest_joined_$id') == true) {
           choices.add(_PortfolioChoice(id: id, label: name));
@@ -552,7 +557,16 @@ class _DashboardPageState extends State<DashboardPage> {
                     // stock detail. Main portfolio falls back to green.
                     final accent = contestColorFor(c.id);
                     return ChoiceChip(
-                      label: Text(c.label),
+                      // Cap the chip so an unexpectedly long contest name
+                      // truncates instead of consuming the whole row.
+                      label: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 150),
+                        child: Text(
+                          c.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       selected: selected,
                       avatar: Icon(
                         c.isMain ? Icons.account_balance_wallet : Icons.emoji_events,
@@ -591,6 +605,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     _selected.isMain
                         ? 'Portfolio Value'
                         : '${_selected.label} · Portfolio Value',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                   const SizedBox(height: 8),

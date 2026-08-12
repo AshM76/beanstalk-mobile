@@ -164,7 +164,12 @@ class _StockDetailPageState extends State<StockDetailPage> {
       if (contestsRes.isOk && contestsRes.data != null) {
         for (final c in contestsRes.data!) {
           final id = c['contest_id'] as String?;
-          final name = (c['name'] as String?) ?? 'Contest';
+          // Prefer the admin-set short display name (same rule as the
+          // home-screen switcher) so picker chips stay compact.
+          final shortName = c['short_name'] as String?;
+          final name = (shortName != null && shortName.trim().isNotEmpty)
+              ? shortName.trim()
+              : (c['name'] as String?) ?? 'Contest';
           if (id == null) continue;
           if (prefs.getBool('contest_joined_$id') == true) {
             choices.add(_PortfolioChoice(id: id, label: name));
@@ -565,12 +570,19 @@ class _StockDetailPageState extends State<StockDetailPage> {
                     // portfolio stays green.
                     final accent = contestColorFor(choice.id);
                     return ChoiceChip(
-                      label: Text(
-                        choice.label,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: selected ? Colors.white : Colors.black87,
+                      // Cap the chip so an unexpectedly long contest name
+                      // truncates instead of consuming the whole row.
+                      label: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 150),
+                        child: Text(
+                          choice.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: selected ? Colors.white : Colors.black87,
+                          ),
                         ),
                       ),
                       selected: selected,
@@ -940,10 +952,17 @@ class _StockDetailPageState extends State<StockDetailPage> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: Text(
-                        '${isBuy ? 'Buy' : 'Sell'} ${fmtQty(shares)}${unitShort(shares)} · ${_currency.format(total)}',
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                      // Scale down instead of overflowing when fractional
+                      // quantities + price make the label long on narrow
+                      // phones (e.g. "Buy 0.5127 shares · $1,234.56").
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '${isBuy ? 'Buy' : 'Sell'} ${fmtQty(shares)}${unitShort(shares)} · ${_currency.format(total)}',
+                          maxLines: 1,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                   ),
