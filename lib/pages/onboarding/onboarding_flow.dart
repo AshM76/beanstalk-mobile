@@ -232,43 +232,65 @@ class _WelcomePage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         children: [
-          const Spacer(flex: 2),
-          // Cash waving hello
-          SvgPicture.asset(
-            'assets/images/cash/cash_happy.svg',
-            height: 120,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Beanstalk',
-            style: TextStyle(
-              fontSize: 38,
-              fontWeight: FontWeight.w900,
-              color: _kPrimary,
-              letterSpacing: -0.5,
+          // Same pinned-footer pattern as the age picker: the hero content
+          // scrolls if it ever exceeds the viewport (small screens, large
+          // accessibility text) so the button below can never be pushed
+          // off-screen. ConstrainedBox + IntrinsicHeight keep the Spacers
+          // working when the content fits, preserving the centered look.
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      children: [
+                        const Spacer(flex: 2),
+                        // Cash waving hello
+                        SvgPicture.asset(
+                          'assets/images/cash/cash_happy.svg',
+                          height: 120,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Beanstalk',
+                          style: TextStyle(
+                            fontSize: 38,
+                            fontWeight: FontWeight.w900,
+                            color: _kPrimary,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Learn. Trade. Compete.',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'The smartest way to learn investing — with virtual money, real market data, and friendly competition.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 14, color: Colors.black45, height: 1.6),
+                        ),
+                        const SizedBox(height: 28),
+                        const CashBubble(
+                          message: CashTips.onboardingWelcome,
+                          mood: CashMood.happy,
+                        ),
+                        const Spacer(flex: 3),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'Learn. Trade. Compete.',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.black54,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'The smartest way to learn investing — with virtual money, real market data, and friendly competition.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.black45, height: 1.6),
-          ),
-          const SizedBox(height: 28),
-          const CashBubble(
-            message: CashTips.onboardingWelcome,
-            mood: CashMood.happy,
-          ),
-          const Spacer(flex: 3),
+          const SizedBox(height: 8),
           _PrimaryButton(label: "Let's Get Started", onTap: onNext),
           const SizedBox(height: 32),
         ],
@@ -329,20 +351,23 @@ class _AgePickerPage extends StatelessWidget {
                           children: [
                             Text(g.$1, style: const TextStyle(fontSize: 28)),
                             const SizedBox(width: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(g.$2,
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: isSelected ? _kPrimary : Colors.black87)),
-                                Text(g.$3,
-                                    style: const TextStyle(
-                                        fontSize: 12, color: Colors.black45)),
-                              ],
+                            // Expanded so long labels wrap instead of
+                            // overflowing the card at large text scales.
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(g.$2,
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: isSelected ? _kPrimary : Colors.black87)),
+                                  Text(g.$3,
+                                      style: const TextStyle(
+                                          fontSize: 12, color: Colors.black45)),
+                                ],
+                              ),
                             ),
-                            const Spacer(),
                             if (isSelected)
                               const Icon(Icons.check_circle_rounded,
                                   color: _kPrimary, size: 22),
