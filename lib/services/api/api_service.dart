@@ -435,6 +435,31 @@ class ApiService {
     return ApiResult.ok((r.data as Map).cast<String, dynamic>());
   }
 
+  /// GET /api/contests/:contestId/messages — shared contest chat feed.
+  Future<ApiResult<List<Map<String, dynamic>>>> getContestMessages(
+    String contestId,
+  ) async {
+    final r = await _get('/api/contests/$contestId/messages');
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    final payload = r.data;
+    final raw = (payload is Map && payload['messages'] is List)
+        ? payload['messages'] as List
+        : const [];
+    return ApiResult.ok(
+        raw.map((m) => (m as Map).cast<String, dynamic>()).toList());
+  }
+
+  /// POST /api/contests/:contestId/messages — send a chat message. The
+  /// backend resolves the display name from the JWT.
+  Future<ApiResult<Map<String, dynamic>>> postContestMessage(
+    String contestId,
+    String text,
+  ) async {
+    final r = await _post('/api/contests/$contestId/messages', {'text': text});
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    return ApiResult.ok((r.data as Map).cast<String, dynamic>());
+  }
+
   /// POST /api/contests/:contestId/join
   Future<ApiResult<Map<String, dynamic>>> joinContest(
     String userId,

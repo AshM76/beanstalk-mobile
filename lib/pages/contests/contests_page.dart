@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -262,17 +261,17 @@ class ChatMessage {
     required this.isCurrentUser,
   });
 
-  Map<String, dynamic> toJson() => {
-    'u': username, 't': text,
-    'ts': time.millisecondsSinceEpoch, 'me': isCurrentUser,
-  };
-
-  factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
-    username:      j['u'] as String,
-    text:          j['t'] as String,
-    time:          DateTime.fromMillisecondsSinceEpoch(j['ts'] as int),
-    isCurrentUser: j['me'] as bool? ?? false,
-  );
+  /// Row from GET /api/contests/:id/messages. `isCurrentUser` is derived by
+  /// comparing the row's user_id to this device's authenticated user.
+  factory ChatMessage.fromApi(Map<String, dynamic> m, String? myUserId) =>
+      ChatMessage(
+        username: (m['username'] as String?) ?? 'Player',
+        text: (m['text'] as String?) ?? '',
+        time: DateTime.tryParse(m['created_at']?.toString() ?? '') ??
+            DateTime.now(),
+        isCurrentUser:
+            myUserId != null && m['user_id']?.toString() == myUserId,
+      );
 }
 
 
@@ -281,7 +280,6 @@ class ChatMessage {
 String _joinKey(String id)     => 'contest_joined_$id';
 String _notifyKey(String id)   => 'contest_notify_$id';
 String _partKey(String id)     => 'contest_participants_$id';
-String _chatKey(String id)     => 'contest_chat_$id';
 
 // ── Contests Page ─────────────────────────────────────────────────────────────
 
@@ -1852,60 +1850,71 @@ class _ChatTab extends StatefulWidget {
 }
 
 class _ChatTabState extends State<_ChatTab> {
+  static const _pollInterval = Duration(seconds: 7);
+
   final _ctrl       = TextEditingController();
   final _scroll     = ScrollController();
   List<ChatMessage> _messages = [];
-  String _username  = 'You';
   bool   _loading   = true;
+  bool   _sending   = false;
+  Timer? _poll;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _refresh(initial: true);
+    _poll = Timer.periodic(_pollInterval, (_) => _refresh());
   }
 
   @override
   void dispose() {
+    _poll?.cancel();
     _ctrl.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final p       = await SharedPreferences.getInstance();
-    _username     = p.getString('profile_display_name') ?? 'You';
-    final raw     = p.getString(_chatKey(widget.contestId));
-    final msgs    = <ChatMessage>[];
-    if (raw != null) {
-      try {
-        final list = jsonDecode(raw) as List;
-        msgs.addAll(list.map((e) => ChatMessage.fromJson(Map<String, dynamic>.from(e as Map))));
-      } catch (_) {}
-    }
+  /// Pull the shared feed from the API. Polling keeps the tab live without
+  /// websockets; 7s is fine for a beta-sized contest.
+  Future<void> _refresh({bool initial = false}) async {
+    final api = ApiService();
+    final res = await api.getContestMessages(widget.contestId);
     if (!mounted) return;
-    setState(() { _messages = msgs; _loading = false; });
-    _scrollToBottom();
-  }
-
-  Future<void> _saveMessages(List<ChatMessage> msgs) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString(_chatKey(widget.contestId),
-        jsonEncode(msgs.map((m) => m.toJson()).toList()));
+    if (res.isOk) {
+      final wasAtBottom = !_scroll.hasClients ||
+          _scroll.position.pixels >= _scroll.position.maxScrollExtent - 40;
+      final msgs = res.data!
+          .map((m) => ChatMessage.fromApi(m, api.currentUserId))
+          .toList();
+      final grew = msgs.length > _messages.length;
+      setState(() { _messages = msgs; _loading = false; });
+      // Don't yank the view down if the user scrolled up to read history.
+      if (initial || (grew && wasAtBottom)) _scrollToBottom();
+    } else if (initial) {
+      setState(() => _loading = false);
+    }
   }
 
   Future<void> _send() async {
     final text = _ctrl.text.trim();
-    if (text.isEmpty) return;
-    _ctrl.clear();
-    final msg = ChatMessage(
-      username: _username,
-      text: text,
-      time: DateTime.now(),
-      isCurrentUser: true,
-    );
-    setState(() => _messages.add(msg));
-    await _saveMessages(_messages);
-    _scrollToBottom();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    final api = ApiService();
+    final res = await api.postContestMessage(widget.contestId, text);
+    if (!mounted) return;
+    if (res.isOk) {
+      _ctrl.clear();
+      setState(() {
+        _messages.add(ChatMessage.fromApi(res.data!, api.currentUserId));
+        _sending = false;
+      });
+      _scrollToBottom();
+    } else {
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Message didn\'t send — check your connection.'),
+      ));
+    }
   }
 
   void _scrollToBottom() {
