@@ -193,6 +193,44 @@ class ApiService {
     return null;
   }
 
+  /// Request a password-reset code for [email].
+  ///
+  /// The backend always responds 200 and never reveals whether the account
+  /// exists. In the demo backend (no SMTP configured) the response carries a
+  /// `dev_code` so the flow is usable without email — callers may surface it.
+  /// Returns the parsed response on success (possibly containing `dev_code`),
+  /// or a failure with an error string on network trouble.
+  Future<ApiResult<Map<String, dynamic>>> requestPasswordReset(String email) async {
+    final r = await _post('/api/auth/password/forgot', {'email': email});
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    final data =
+        (r.data is Map) ? (r.data as Map).cast<String, dynamic>() : <String, dynamic>{};
+    return ApiResult.ok(data);
+  }
+
+  /// Complete a password reset with the [code] delivered to [email]. On
+  /// success, persists the returned JWT + userId (same as login) so the app
+  /// lands signed in, and returns null. On failure returns an error string.
+  Future<String?> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+  }) async {
+    final r = await _post('/api/auth/password/reset', {
+      'email': email,
+      'code': code,
+      'password': password,
+    });
+    if (!r.isOk) return r.error ?? 'Password reset failed';
+    final d = r.data as Map;
+    await setAuth(
+      userId: d['user_id'] as String,
+      jwt: d['token'] as String?,
+      name: d['name'] as String?,
+    );
+    return null;
+  }
+
   /// Sign out — clears persisted credentials.
   Future<void> logout() async {
     final p = await SharedPreferences.getInstance();

@@ -12,7 +12,7 @@
 ## Feature Requests
 | # | Requested By | Description | Priority | Status |
 |---|-------------|-------------|----------|--------|
-| 1 | Ash (amehta76) | In-app account recovery: "Forgot password" and "Forgot username/email" links + flow on the login screen. Today there is no reset path in the app, and the backend exposes only `/api/auth/login` and `/api/auth/register` (no reset endpoint), which is what caused a real self-lockout requiring a manual bcrypt-hash edit on the Fly volume. Needs: (a) backend reset endpoint(s) — e.g. request-code-by-email + verify + set-new-password, hashing at bcrypt cost 10 to match signup; (b) login-screen UI entry points; (c) email delivery for the reset code/link. | High | Backlog |
+| 1 | Ash (amehta76) | In-app account recovery: "Forgot password" flow on the login screen. Login is by email (no separate username), so "forgot username" = use your signup email — called out in the UI copy. **Implemented:** backend `POST /api/auth/password/forgot` + `/reset` (6-digit code, bcrypt-hashed, 15-min TTL, attempt cap, cost-10 rehash) in `beanstalk-api` (PR pending); Flutter "Forgot password?" link + 2-step `ForgotPasswordPage` here. Best-effort email; in demo (no SMTP) the code is returned/shown as `dev_code`. **Follow-up:** add `BEANSTALK_ACCOUNT_PASS` (Gmail app password) Fly secret to enable real email delivery. | High | In Progress (PRs open) |
 
 ## Tester Notes
 | Tester | Device | Overall Rating | Key Feedback |
