@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/api/api_service.dart';
 import '../onboarding/onboarding_flow.dart';
+import 'forgot_password_page.dart';
 import 'signup_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -188,7 +189,27 @@ class _LoginPageState extends State<LoginPage> {
                                     fontWeight: FontWeight.bold)),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+                    // Forgot password link — carries whatever email is already
+                    // typed so the user doesn't re-enter it.
+                    Align(
+                      alignment: Alignment.center,
+                      child: TextButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ForgotPasswordPage(
+                              initialEmail: _emailCtrl.text.trim().isEmpty
+                                  ? null
+                                  : _emailCtrl.text.trim(),
+                            ),
+                          ),
+                        ),
+                        child: const Text('Forgot password?',
+                            style: TextStyle(color: Color(0xFF2E7D32))),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     // Sign Up link
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
