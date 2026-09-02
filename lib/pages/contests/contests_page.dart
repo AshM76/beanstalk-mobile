@@ -9,6 +9,7 @@ import '../../services/api/api_service.dart';
 import '../../services/contest/contest_service.dart';
 import '../../utils/contest_color.dart';
 import '../../widgets/cash_advisor_sheet.dart';
+import '../../widgets/contest_portfolio_tab.dart';
 import '../stocks/stock_search_page.dart';
 
 final _contestCurrency = NumberFormat('#,##0', 'en_US');
@@ -1001,7 +1002,10 @@ class _ContestDetailPageState extends State<ContestDetailPage>
   @override
   void initState() {
     super.initState();
-    _tab          = TabController(length: 3, vsync: this);
+    // 4 tabs: Details · Portfolio · Leaderboard · Chat. A joined user's first
+    // interest is their own contest portfolio, so land them on it (index 1);
+    // someone browsing an unjoined contest starts on Details.
+    _tab          = TabController(length: 4, vsync: this, initialIndex: widget.joined ? 1 : 0);
     _joined       = widget.joined;
     _notified     = widget.notified;
     _participants = widget.participants;
@@ -1059,6 +1063,7 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           unselectedLabelColor: Colors.white60,
           tabs: const [
             Tab(text: 'Details'),
+            Tab(text: 'Portfolio'),
             Tab(text: 'Leaderboard'),
             Tab(text: 'Chat'),
           ],
@@ -1131,6 +1136,13 @@ class _ContestDetailPageState extends State<ContestDetailPage>
               controller: _tab,
               children: [
                 _DetailsTab(contest: c, participants: _participants, color: _color),
+                ContestPortfolioTab(
+                  contestId: c.id,
+                  contestName: c.title,
+                  accent: _color,
+                  joined: _joined,
+                  isActive: c.status == ContestStatus.active,
+                ),
                 _LeaderboardTab(contest: c, color: _color),
                 _ChatTab(contestId: c.id, color: _color),
               ],

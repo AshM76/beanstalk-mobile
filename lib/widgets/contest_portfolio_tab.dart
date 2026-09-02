@@ -1,0 +1,367 @@
+// lib/widgets/contest_portfolio_tab.dart
+//
+// The "Portfolio" tab inside a contest's detail screen (ContestDetailPage).
+//
+// This is the heart of the dedicated-contest-workspace model: instead of the
+// user hunting for which portfolio they're looking at on the shared dashboard,
+// each contest owns a themed view of *its* holdings, cash, and P/L, plus a
+// trade entry that routes straight into that contest's portfolio. Everything
+// here is scoped to a single contestId, so there's no ambiguity about which
+// portfolio a value or a trade belongs to.
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../models/holding.dart';
+import '../services/market/market_service.dart';
+import '../services/portfolio/portfolio_service.dart';
+import '../pages/stocks/stock_search_page.dart';
+
+class ContestPortfolioTab extends StatefulWidget {
+  final String contestId;
+  final String contestName;
+  final Color accent;
+
+  /// Whether the current user has joined this contest. A non-joined user has
+  /// no contest portfolio, so we show a prompt instead of an empty $0 view.
+  final bool joined;
+
+  /// Whether the contest is currently active (trading allowed). Upcoming /
+  /// ended contests hide the trade entry.
+  final bool isActive;
+
+  const ContestPortfolioTab({
+    super.key,
+    required this.contestId,
+    required this.contestName,
+    required this.accent,
+    required this.joined,
+    required this.isActive,
+  });
+
+  @override
+  State<ContestPortfolioTab> createState() => _ContestPortfolioTabState();
+}
+
+class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
+  static final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+
+  bool _loading = true;
+  double _cash = 0;
+  Map<String, Holding> _holdings = const {};
+  Map<String, double> _prices = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.joined) {
+      _load();
+    } else {
+      _loading = false;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ContestPortfolioTab old) {
+    super.didUpdateWidget(old);
+    // The user can join from the detail screen's bottom bar while this tab is
+    // already mounted; when that flips joined false→true, load the freshly
+    // created contest portfolio.
+    if (widget.joined && !old.joined) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    if (!widget.joined) return;
+    setState(() => _loading = true);
+    final data = await PortfolioService.load(contestId: widget.contestId);
+    final prices = data.holdings.isEmpty
+        ? <String, double>{}
+        : await MarketService.getPrices(data.holdings.keys.toList());
+    if (!mounted) return;
+    setState(() {
+      _cash = data.cash;
+      _holdings = data.holdings;
+      _prices = prices;
+      _loading = false;
+    });
+  }
+
+  double _priceFor(Holding h) => _prices[h.symbol] ?? h.avgCost;
+  double get _marketValue =>
+      _holdings.values.fold(0.0, (sum, h) => sum + h.quantity * _priceFor(h));
+  double get _costBasis =>
+      _holdings.values.fold(0.0, (sum, h) => sum + h.quantity * h.avgCost);
+  double get _totalValue => _cash + _marketValue;
+  double get _plAbs => _marketValue - _costBasis;
+  double get _plPct => _costBasis > 0 ? (_plAbs / _costBasis) * 100 : 0;
+
+  Future<void> _openTrade() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StockSearchPage(
+          contestId: widget.contestId,
+          contestName: widget.contestName,
+        ),
+      ),
+    );
+    _load(); // refresh after returning from a possible trade
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.joined) {
+      return _CenteredMessage(
+        icon: Icons.emoji_events_outlined,
+        title: 'Join to start trading',
+        subtitle:
+            'Join this contest to get a fresh portfolio and start trading '
+            'against other players.',
+      );
+    }
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final holdings = _holdings.values.toList()
+      ..sort((a, b) => (b.quantity * _priceFor(b))
+          .compareTo(a.quantity * _priceFor(a)));
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: widget.accent,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _valueCard(),
+          const SizedBox(height: 16),
+          if (widget.isActive) ...[
+            _tradeButton(),
+            const SizedBox(height: 20),
+          ],
+          Row(
+            children: [
+              Text('Holdings',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 6),
+              Text('(${holdings.length})',
+                  style: const TextStyle(color: Colors.grey, fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (holdings.isEmpty)
+            _emptyHoldings()
+          else
+            ...holdings.map(_holdingRow),
+        ],
+      ),
+    );
+  }
+
+  Widget _valueCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [widget.accent, Color.lerp(widget.accent, Colors.black, 0.25)!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.emoji_events, color: Colors.white70, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${widget.contestName} · Portfolio Value',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _currency.format(_totalValue),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _stat('Cash', _currency.format(_cash)),
+              _stat('Invested', _currency.format(_costBasis)),
+              _stat(
+                'P/L',
+                '${_plAbs >= 0 ? '+' : ''}${_currency.format(_plAbs)}'
+                    '  (${_plPct >= 0 ? '+' : ''}${_plPct.toStringAsFixed(1)}%)',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stat(String label, String value) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(color: Colors.white60, fontSize: 11)),
+          const SizedBox(height: 2),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _tradeButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton.icon(
+        onPressed: _openTrade,
+        icon: const Icon(Icons.trending_up),
+        label: const Text('Trade in this contest',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: widget.accent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyHoldings() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.savings_outlined, color: widget.accent, size: 36),
+          const SizedBox(height: 10),
+          const Text('No positions yet',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(
+            widget.isActive
+                ? 'Make your first trade in this contest to see it here.'
+                : 'This contest isn\'t active for trading right now.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _holdingRow(Holding h) {
+    final price = _priceFor(h);
+    final mv = h.quantity * price;
+    final cost = h.quantity * h.avgCost;
+    final pl = mv - cost;
+    final plPct = cost > 0 ? (pl / cost) * 100 : 0.0;
+    final up = pl >= 0;
+    final plColor = up ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(h.symbol,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 2),
+                Text(
+                  '${_qty(h.quantity)} @ ${_currency.format(h.avgCost)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(_currency.format(mv),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14)),
+              const SizedBox(height: 2),
+              Text(
+                '${up ? '+' : ''}${_currency.format(pl)} (${up ? '+' : ''}${plPct.toStringAsFixed(1)}%)',
+                style: TextStyle(color: plColor, fontSize: 12),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Whole numbers render without a trailing ".0"; fractional shares keep up to
+  // four places (crypto positions can be small fractions).
+  String _qty(double q) =>
+      q == q.roundToDouble() ? q.toStringAsFixed(0) : q.toStringAsFixed(4);
+}
+
+class _CenteredMessage extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  const _CenteredMessage(
+      {required this.icon, required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(title,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black54)),
+          ],
+        ),
+      ),
+    );
+  }
+}
