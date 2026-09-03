@@ -1142,6 +1142,7 @@ class _ContestDetailPageState extends State<ContestDetailPage>
                   accent: _color,
                   joined: _joined,
                   isActive: c.status == ContestStatus.active,
+                  timeLabel: c.timeLabel,
                 ),
                 _LeaderboardTab(contest: c, color: _color),
                 _ChatTab(contestId: c.id, color: _color),

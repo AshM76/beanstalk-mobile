@@ -15,6 +15,11 @@ import 'package:intl/intl.dart';
 import '../models/holding.dart';
 import '../services/market/market_service.dart';
 import '../services/portfolio/portfolio_service.dart';
+import '../services/contest/contest_service.dart';
+// LeaderboardEntry lives in the contests page; importing just the type (Dart
+// tolerates the resulting import cycle) lets us reuse the same merged, re-ranked
+// standings the Leaderboard tab shows, so a user's rank is consistent.
+import '../pages/contests/contests_page.dart' show LeaderboardEntry;
 import '../pages/stocks/stock_search_page.dart';
 
 class ContestPortfolioTab extends StatefulWidget {
@@ -30,6 +35,10 @@ class ContestPortfolioTab extends StatefulWidget {
   /// ended contests hide the trade entry.
   final bool isActive;
 
+  /// Human-readable time remaining (e.g. "5d left", "Ended"), from
+  /// Contest.timeLabel — shown as a pill so a player sees urgency at a glance.
+  final String timeLabel;
+
   const ContestPortfolioTab({
     super.key,
     required this.contestId,
@@ -37,6 +46,7 @@ class ContestPortfolioTab extends StatefulWidget {
     required this.accent,
     required this.joined,
     required this.isActive,
+    required this.timeLabel,
   });
 
   @override
@@ -50,6 +60,11 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
   double _cash = 0;
   Map<String, Holding> _holdings = const {};
   Map<String, double> _prices = const {};
+
+  // Standings within the contest (best-effort; null rank = not ranked / not
+  // yet available). _participants is the size of the merged leaderboard.
+  int? _myRank;
+  int _participants = 0;
 
   @override
   void initState() {
@@ -79,11 +94,29 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
     final prices = data.holdings.isEmpty
         ? <String, double>{}
         : await MarketService.getPrices(data.holdings.keys.toList());
+
+    // Rank uses the same merged/re-ranked standings the Leaderboard tab shows.
+    // Best-effort: a failure just hides the rank number.
+    int? myRank;
+    int participants = 0;
+    final lb = await ContestService.fetchLeaderboard(widget.contestId);
+    if (lb.isOk && lb.data != null) {
+      participants = lb.data!.length;
+      for (final LeaderboardEntry e in lb.data!) {
+        if (e.isCurrentUser) {
+          myRank = e.rank;
+          break;
+        }
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _cash = data.cash;
       _holdings = data.holdings;
       _prices = prices;
+      _myRank = myRank;
+      _participants = participants;
       _loading = false;
     });
   }
@@ -135,6 +168,8 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _metaRow(),
+          const SizedBox(height: 12),
           _valueCard(),
           const SizedBox(height: 16),
           if (widget.isActive) ...[
@@ -156,6 +191,55 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
             _emptyHoldings()
           else
             ...holdings.map(_holdingRow),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _pill(
+            icon: Icons.emoji_events,
+            text: _myRank != null
+                ? 'Rank #$_myRank${_participants > 0 ? ' of $_participants' : ''}'
+                : 'Unranked',
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _pill(icon: Icons.schedule, text: widget.timeLabel),
+        ),
+      ],
+    );
+  }
+
+  Widget _pill({required IconData icon, required String text}) {
+    final tint = Color.alphaBlend(
+        widget.accent.withValues(alpha: 0.12), Colors.white);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tint,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: widget.accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: widget.accent),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: widget.accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13),
+            ),
+          ),
         ],
       ),
     );
