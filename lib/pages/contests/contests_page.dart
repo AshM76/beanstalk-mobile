@@ -7,8 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
 import '../../services/contest/contest_service.dart';
+import '../../services/portfolio/portfolio_service.dart';
 import '../../utils/contest_color.dart';
 import '../../widgets/cash_advisor_sheet.dart';
+import '../../widgets/contest_portfolio_tab.dart';
 import '../stocks/stock_search_page.dart';
 
 final _contestCurrency = NumberFormat('#,##0', 'en_US');
@@ -889,7 +891,7 @@ class _ContestCard extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: onTap,
             icon: const Icon(Icons.leaderboard, size: 16),
-            label: const Text('View Leaderboard'),
+            label: const Text('View Standings'),
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: _color),
               foregroundColor: _color,
@@ -1001,10 +1003,27 @@ class _ContestDetailPageState extends State<ContestDetailPage>
   @override
   void initState() {
     super.initState();
-    _tab          = TabController(length: 3, vsync: this);
+    // 4 tabs: Details · Portfolio · Leaderboard · Chat. A joined user's first
+    // interest is their own contest portfolio, so land them on it (index 1);
+    // someone browsing an unjoined contest starts on Details.
+    _tab          = TabController(length: 4, vsync: this, initialIndex: widget.joined ? 1 : 0);
     _joined       = widget.joined;
     _notified     = widget.notified;
     _participants = widget.participants;
+    _checkServerMembership();
+  }
+
+  // Membership is authoritative on the server: a user seeded into a contest, or
+  // who joined on another device, has no local join flag. Ask the backend (does
+  // a contest portfolio exist for me?) and reflect real membership so the bottom
+  // bar and trade entry aren't stuck on "Join Contest". Only ever flips to
+  // joined — a fresh in-session join is never undone by a slow check.
+  Future<void> _checkServerMembership() async {
+    final res = await PortfolioService.loadContestPortfolio(c.id);
+    if (!mounted) return;
+    if (res.status == ContestPortfolioStatus.joined && !_joined) {
+      setState(() => _joined = true);
+    }
   }
 
   @override
@@ -1059,7 +1078,10 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           unselectedLabelColor: Colors.white60,
           tabs: const [
             Tab(text: 'Details'),
-            Tab(text: 'Leaderboard'),
+            Tab(text: 'Portfolio'),
+            // "Standings" instead of "Leaderboard": with four tabs the longer
+            // label was truncating in the tab bar.
+            Tab(text: 'Standings'),
             Tab(text: 'Chat'),
           ],
         ),
@@ -1131,6 +1153,14 @@ class _ContestDetailPageState extends State<ContestDetailPage>
               controller: _tab,
               children: [
                 _DetailsTab(contest: c, participants: _participants, color: _color),
+                ContestPortfolioTab(
+                  contestId: c.id,
+                  contestName: c.title,
+                  accent: _color,
+                  joined: _joined,
+                  isActive: c.status == ContestStatus.active,
+                  timeLabel: c.timeLabel,
+                ),
                 _LeaderboardTab(contest: c, color: _color),
                 _ChatTab(contestId: c.id, color: _color),
               ],
@@ -1213,14 +1243,28 @@ class _ContestDetailPageState extends State<ContestDetailPage>
       width: double.infinity,
       height: 50,
       child: _joined
-          ? OutlinedButton.icon(
-              onPressed: _handleJoinToggle,
-              icon: const Icon(Icons.exit_to_app, size: 18),
-              label: Text('Leave Contest  ·  $_participants joined'),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.red),
-                foregroundColor: Colors.red,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          // Already a participant. Show a clear "you're in" status rather than a
+          // "Leave Contest" action — there's no working leave endpoint yet, so
+          // that button was a no-op and read as broken.
+          ? Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Color.alphaBlend(
+                    _color.withValues(alpha: 0.12), Colors.white),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _color),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, size: 18, color: _color),
+                  const SizedBox(width: 8),
+                  Text(
+                    "You're in  ·  $_participants ${_participants == 1 ? 'player' : 'players'}",
+                    style:
+                        TextStyle(color: _color, fontWeight: FontWeight.w600),
+                  ),
+                ],
               ),
             )
           : ElevatedButton.icon(
@@ -1632,7 +1676,7 @@ class _LeaderboardTabState extends State<_LeaderboardTab> {
           const SizedBox(height: 12),
           Text(
             contest.status == ContestStatus.upcoming
-                ? 'Leaderboard not yet available'
+                ? 'Standings not yet available'
                 : 'No rankings yet',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),

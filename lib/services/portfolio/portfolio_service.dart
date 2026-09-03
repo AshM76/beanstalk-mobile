@@ -19,6 +19,10 @@ import '../notification/notification_service.dart';
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
+/// Outcome of [PortfolioService.loadContestPortfolio] — lets callers tell a
+/// real "not a participant" (404) apart from a transient failure.
+enum ContestPortfolioStatus { joined, notJoined, error }
+
 class PortfolioService {
   // Local-only flag: has the user ever made a trade? (drives first-trade
   // notification — pure UI concern, no portfolio state.)
@@ -66,6 +70,48 @@ class PortfolioService {
       'contest=${contestId ?? "main"}',
     );
     return (cash: cash, holdings: holdings);
+  }
+
+  /// Membership-aware contest portfolio load.
+  ///
+  /// Unlike [load], which masks any failure behind a $10k empty fallback, this
+  /// distinguishes "in the contest" from "not a participant": the backend 404s
+  /// GET /api/portfolio/:userId?contest_id=… when the user hasn't joined. This
+  /// lets the contest Portfolio tab reflect *server* membership rather than a
+  /// device-local join flag — so a user seeded into a contest (or who joined on
+  /// another device) still sees their holdings and can trade.
+  ///
+  /// Returns:
+  ///   - `(status: joined, cash, holdings)` when the portfolio exists,
+  ///   - `(status: notJoined, …)` on a 404,
+  ///   - `(status: error, …)` on any other failure (network, 5xx) so the UI
+  ///     can offer a retry instead of a misleading "join" prompt.
+  static Future<({ContestPortfolioStatus status, double cash, Map<String, Holding> holdings})>
+      loadContestPortfolio(String contestId) async {
+    final userId = _api.currentUserId;
+    final r = await _api.getContestPortfolio(userId, contestId);
+
+    if (!r.isOk) {
+      final status = r.statusCode == 404
+          ? ContestPortfolioStatus.notJoined
+          : ContestPortfolioStatus.error;
+      debugPrint('[Portfolio.loadContest] $contestId → ${r.statusCode} ${r.error} ($status)');
+      return (status: status, cash: 0.0, holdings: <String, Holding>{});
+    }
+
+    final data = r.data!;
+    final cash = _num(data['current_balance']) ?? _num(data['starting_balance']) ?? 0.0;
+    final positions = (data['positions'] as List?) ?? const [];
+
+    final holdings = <String, Holding>{};
+    for (final raw in positions) {
+      if (raw is! Map) continue;
+      final h = Holding.fromJson(raw.cast<String, dynamic>());
+      if (h.symbol.isEmpty || h.quantity <= 0) continue;
+      holdings[h.symbol] = h;
+    }
+
+    return (status: ContestPortfolioStatus.joined, cash: cash, holdings: holdings);
   }
 
   /// Buy shares. Returns null on success, error string on failure.

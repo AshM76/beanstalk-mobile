@@ -329,47 +329,15 @@ class _DashboardPageState extends State<DashboardPage> {
   /// contests) and then reload whichever portfolio is currently selected.
   /// Preserves the user's selection across reloads when possible.
   Future<void> _loadChoicesAndPortfolio() async {
-    final api = ApiService();
-    final prefs = await SharedPreferences.getInstance();
-
-    final previouslySelectedId = (_choices.isNotEmpty) ? _selected.id : null;
-
-    final choices = <_PortfolioChoice>[
-      const _PortfolioChoice(id: null, label: 'My Portfolio'),
-    ];
-
-    // Fetch contests once and filter to those the user has joined. The
-    // SharedPreferences `contest_joined_<id>` flag is written by
-    // contests_page when a join succeeds, so it's the fastest way to derive
-    // "my contests" without a dedicated backend endpoint.
-    final contestsRes = await api.getContests();
-    if (contestsRes.isOk) {
-      for (final c in contestsRes.data!) {
-        final id = c['contest_id'] as String?;
-        // Prefer the admin-set short display name; long full names blow up
-        // the switcher chips and the portfolio card header.
-        final shortName = c['short_name'] as String?;
-        final name = (shortName != null && shortName.trim().isNotEmpty)
-            ? shortName.trim()
-            : (c['name'] as String?) ?? 'Contest';
-        if (id == null) continue;
-        if (prefs.getBool('contest_joined_$id') == true) {
-          choices.add(_PortfolioChoice(id: id, label: name));
-        }
-      }
-    }
-
-    // Preserve selection if the same contest is still present.
-    var nextIdx = 0;
-    if (previouslySelectedId != null) {
-      final i = choices.indexWhere((c) => c.id == previouslySelectedId);
-      if (i != -1) nextIdx = i;
-    }
-
+    // Home shows the user's MAIN portfolio only. Each contest now has its own
+    // themed workspace (the Portfolio tab inside the contest's detail screen),
+    // so the dashboard no longer mixes portfolios — removing the "which
+    // portfolio am I looking at?" ambiguity. The single-choice switcher below
+    // stays hidden (it only renders when there's more than one choice).
     if (!mounted) return;
     setState(() {
-      _choices = choices;
-      _selectedIdx = nextIdx;
+      _choices = const [_PortfolioChoice(id: null, label: 'My Portfolio')];
+      _selectedIdx = 0;
     });
     await _loadPortfolio();
   }
