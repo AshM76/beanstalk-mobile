@@ -166,7 +166,7 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
       );
     }
     if (_status == ContestPortfolioStatus.notJoined) {
-      return _CenteredMessage(
+      return const _CenteredMessage(
         icon: Icons.emoji_events_outlined,
         title: 'Join to start trading',
         subtitle:
