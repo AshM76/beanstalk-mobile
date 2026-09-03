@@ -57,6 +57,10 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
   static final _currency = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
   bool _loading = true;
+  // Server-authoritative membership: whether the user actually has a portfolio
+  // in this contest (not the device-local join flag, which misses seeded or
+  // other-device joins).
+  ContestPortfolioStatus _status = ContestPortfolioStatus.notJoined;
   double _cash = 0;
   Map<String, Holding> _holdings = const {};
   Map<String, double> _prices = const {};
@@ -69,11 +73,10 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
   @override
   void initState() {
     super.initState();
-    if (widget.joined) {
-      _load();
-    } else {
-      _loading = false;
-    }
+    // Always ask the server whether the user has a portfolio here, regardless
+    // of the local join flag — that's what fixes seeded/other-device members
+    // seeing an empty tab.
+    _load();
   }
 
   @override
@@ -88,32 +91,38 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
   }
 
   Future<void> _load() async {
-    if (!widget.joined) return;
     setState(() => _loading = true);
-    final data = await PortfolioService.load(contestId: widget.contestId);
-    final prices = data.holdings.isEmpty
-        ? <String, double>{}
-        : await MarketService.getPrices(data.holdings.keys.toList());
 
-    // Rank uses the same merged/re-ranked standings the Leaderboard tab shows.
-    // Best-effort: a failure just hides the rank number.
+    final result = await PortfolioService.loadContestPortfolio(widget.contestId);
+
+    // Live prices only matter when the user actually holds positions.
+    final prices = result.holdings.isEmpty
+        ? <String, double>{}
+        : await MarketService.getPrices(result.holdings.keys.toList());
+
+    // Rank uses the same merged/re-ranked standings the Leaderboard tab shows;
+    // only meaningful when the user is actually in the contest. Best-effort — a
+    // failure just hides the rank number.
     int? myRank;
     int participants = 0;
-    final lb = await ContestService.fetchLeaderboard(widget.contestId);
-    if (lb.isOk && lb.data != null) {
-      participants = lb.data!.length;
-      for (final LeaderboardEntry e in lb.data!) {
-        if (e.isCurrentUser) {
-          myRank = e.rank;
-          break;
+    if (result.status == ContestPortfolioStatus.joined) {
+      final lb = await ContestService.fetchLeaderboard(widget.contestId);
+      if (lb.isOk && lb.data != null) {
+        participants = lb.data!.length;
+        for (final LeaderboardEntry e in lb.data!) {
+          if (e.isCurrentUser) {
+            myRank = e.rank;
+            break;
+          }
         }
       }
     }
 
     if (!mounted) return;
     setState(() {
-      _cash = data.cash;
-      _holdings = data.holdings;
+      _status = result.status;
+      _cash = result.cash;
+      _holdings = result.holdings;
       _prices = prices;
       _myRank = myRank;
       _participants = participants;
@@ -145,7 +154,18 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.joined) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_status == ContestPortfolioStatus.error) {
+      return _CenteredMessage(
+        icon: Icons.cloud_off,
+        title: 'Couldn’t load your contest portfolio',
+        subtitle: 'Check your connection and try again.',
+        onRetry: _load,
+      );
+    }
+    if (_status == ContestPortfolioStatus.notJoined) {
       return _CenteredMessage(
         icon: Icons.emoji_events_outlined,
         title: 'Join to start trading',
@@ -153,9 +173,6 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
             'Join this contest to get a fresh portfolio and start trading '
             'against other players.',
       );
-    }
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
     }
 
     final holdings = _holdings.values.toList()
@@ -178,8 +195,8 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
           ],
           Row(
             children: [
-              Text('Holdings',
-                  style: const TextStyle(
+              const Text('Holdings',
+                  style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(width: 6),
               Text('(${holdings.length})',
@@ -423,8 +440,12 @@ class _CenteredMessage extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final Future<void> Function()? onRetry;
   const _CenteredMessage(
-      {required this.icon, required this.title, required this.subtitle});
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -437,12 +458,17 @@ class _CenteredMessage extends StatelessWidget {
             Icon(icon, size: 48, color: Colors.grey),
             const SizedBox(height: 12),
             Text(title,
+                textAlign: TextAlign.center,
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
             Text(subtitle,
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.black54)),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
           ],
         ),
       ),
