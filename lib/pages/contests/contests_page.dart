@@ -1089,11 +1089,16 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           indicatorColor: Colors.white,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white60,
+          // Four equal-width tabs are tight on a phone; shrink the label font
+          // and padding so "Portfolio"/"Standings" fit without overflowing even
+          // on narrow devices. ("Standings" already replaced "Leaderboard" for
+          // the same reason.)
+          labelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: const TextStyle(fontSize: 12.5),
+          labelPadding: const EdgeInsets.symmetric(horizontal: 4),
           tabs: const [
             Tab(text: 'Details'),
             Tab(text: 'Portfolio'),
-            // "Standings" instead of "Leaderboard": with four tabs the longer
-            // label was truncating in the tab bar.
             Tab(text: 'Standings'),
             Tab(text: 'Chat'),
           ],
