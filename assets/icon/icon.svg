@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2E9E43"/>
+      <stop offset="1" stop-color="#1B5E20"/>
+    </linearGradient>
+    <path id="leaf" d="M0,0 C -90,-76 -45,-171 0,-190 C 45,-171 90,-76 0,0 Z"/>
+    <path id="vein" d="M0,-8 L0,-176" stroke="#1B5E20" stroke-width="9" fill="none" stroke-linecap="round" opacity="0.32"/>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- scale + center the whole plant to fill the tile -->
+  <g transform="translate(512,556) scale(1.16) translate(-512,-600)">
+    <!-- soil mound -->
+    <ellipse cx="512" cy="906" rx="250" ry="50" fill="#ffffff" opacity="0.16"/>
+
+    <!-- stalk -->
+    <path d="M512,900 C470,790 470,690 520,600 C572,505 560,430 512,336"
+          fill="none" stroke="#ffffff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- leaves -->
+    <g fill="#ffffff">
+      <g transform="translate(452,650) rotate(-34) scale(1.0)"><use href="#leaf"/><use href="#vein"/></g>
+      <g transform="translate(596,512) rotate(34) scale(0.94)"><use href="#leaf"/><use href="#vein"/></g>
+      <g transform="translate(470,772) rotate(-20) scale(0.8)"><use href="#leaf"/><use href="#vein"/></g>
+      <!-- top sprout -->
+      <g transform="translate(500,352) rotate(-52) scale(0.55)"><use href="#leaf"/></g>
+      <g transform="translate(526,352) rotate(52) scale(0.55)"><use href="#leaf"/></g>
+    </g>
+  </g>
+</svg>
