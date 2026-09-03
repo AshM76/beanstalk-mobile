@@ -26,6 +26,21 @@ const _kGreen = kContestGreen;
 
 enum ContestStatus { upcoming, active, ended }
 
+/// Formats a contest prize for display. Prepends "$" when [rawValue] is a bare
+/// number ("250", 250, "50.00") so prizes entered without a currency symbol
+/// still read as money; passes through values that already carry a symbol or
+/// are descriptive ("$50", "Trophy Badge"). Falls back to [description], then
+/// an em dash when nothing usable is present.
+String prizeLabel(Object? rawValue, String? description) {
+  final value = rawValue == null ? '' : '$rawValue'.trim();
+  if (value.isNotEmpty) {
+    if (RegExp(r'^\d+(\.\d+)?$').hasMatch(value)) return '\$$value';
+    return value;
+  }
+  final d = description?.trim() ?? '';
+  return d.isNotEmpty ? d : '—';
+}
+
 class Contest {
   final String id;
   final String title;
@@ -125,9 +140,7 @@ class Contest {
     String prize = '—';
     if (prizes.isNotEmpty && prizes.first is Map) {
       final p = (prizes.first as Map).cast<String, dynamic>();
-      prize = (p['prize_value'] as String?) ??
-          (p['prize_description'] as String?) ??
-          '—';
+      prize = prizeLabel(p['prize_value'], p['prize_description'] as String?);
     }
 
     // Deterministic accent color per contest so the UI stays stable across
