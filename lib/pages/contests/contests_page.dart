@@ -1064,7 +1064,9 @@ class _ContestDetailPageState extends State<ContestDetailPage>
           tabs: const [
             Tab(text: 'Details'),
             Tab(text: 'Portfolio'),
-            Tab(text: 'Leaderboard'),
+            // "Standings" instead of "Leaderboard": with four tabs the longer
+            // label was truncating in the tab bar.
+            Tab(text: 'Standings'),
             Tab(text: 'Chat'),
           ],
         ),
