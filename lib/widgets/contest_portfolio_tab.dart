@@ -301,15 +301,36 @@ class _ContestPortfolioTabState extends State<ContestPortfolioTab> {
             children: [
               _stat('Cash', _currency.format(_cash)),
               _stat('Invested', _currency.format(_costBasis)),
-              _stat(
-                'P/L',
-                '${_plAbs >= 0 ? '+' : ''}${_currency.format(_plAbs)}'
-                    '  (${_plPct >= 0 ? '+' : ''}${_plPct.toStringAsFixed(1)}%)',
-              ),
             ],
           ),
+          const SizedBox(height: 14),
+          // P/L on its own full-width line — the string (dollars + percent) is
+          // the longest and most useful figure, so it gets room to breathe.
+          _plBlock(),
         ],
       ),
+    );
+  }
+
+  Widget _plBlock() {
+    final up = _plAbs >= 0;
+    // Soft green/red that stays legible on the accent-colored card.
+    final color = up ? const Color(0xFFB9F6CA) : const Color(0xFFFF8A80);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Profit / Loss',
+            style: TextStyle(color: Colors.white60, fontSize: 11)),
+        const SizedBox(height: 2),
+        Text(
+          '${up ? '+' : ''}${_currency.format(_plAbs)}  '
+          '(${up ? '+' : ''}${_plPct.toStringAsFixed(1)}%)',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style:
+              TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 
