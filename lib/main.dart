@@ -31,6 +31,16 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+/// Switch the main bottom-nav to a tab by index from anywhere in the app.
+/// Registered by [HomeScreen] while it's mounted; null otherwise (so callers
+/// no-op safely). Used e.g. by the contest learning-gate to send a user to the
+/// Learn tab (index 3). Tab order: 0 Home · 1 Contests · 2 Trade · 3 Learn ·
+/// 4 Groups · 5 Profile.
+void Function(int index)? goToMainTab;
+
+/// Index of the Learn tab in [HomeScreen]'s bottom nav.
+const int kLearnTabIndex = 3;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([
@@ -175,6 +185,25 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadGroupCount();
+    // Let the rest of the app switch tabs (e.g. contest gate → Learn).
+    goToMainTab = _selectTab;
+  }
+
+  @override
+  void dispose() {
+    if (goToMainTab == _selectTab) goToMainTab = null;
+    super.dispose();
+  }
+
+  /// Switch to bottom-nav tab [i] and run the same per-tab refresh the nav bar
+  /// does on tap, so programmatic switches stay consistent with user taps.
+  void _selectTab(int i) {
+    if (!mounted) return;
+    setState(() => _index = i);
+    if (i == 0) _dashboardKey.currentState?.reload();
+    if (i == 3) _lessonsKey.currentState?.reload();
+    if (i == 4) _loadGroupCount();
+    if (i == 5) _profileKey.currentState?.reload();
   }
 
   Future<void> _loadGroupCount() async {
@@ -199,16 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
-        onTap: (i) {
-          setState(() => _index = i);
-          if (i == 0) {
-            debugPrint('[HomeScreen] tapping Home  dashState=${_dashboardKey.currentState}');
-            _dashboardKey.currentState?.reload();
-          }
-          if (i == 3) _lessonsKey.currentState?.reload();
-          if (i == 4) _loadGroupCount();
-          if (i == 5) _profileKey.currentState?.reload();
-        },
+        onTap: _selectTab,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF2E7D32),
         unselectedItemColor: Colors.grey,
