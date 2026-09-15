@@ -913,6 +913,9 @@ class _StockDetailPageState extends State<StockDetailPage> {
                     height: 52,
                     child: ElevatedButton(
                       onPressed: () async {
+                        // Capture the messenger before any await so we never
+                        // touch a BuildContext across an async gap.
+                        final messenger = ScaffoldMessenger.of(context);
                         Navigator.pop(ctx);
                         final err = isBuy
                             ? await PortfolioService.buy(
@@ -930,13 +933,14 @@ class _StockDetailPageState extends State<StockDetailPage> {
                               );
                         if (!mounted) return;
                         if (err != null) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          messenger.showSnackBar(SnackBar(
                             content: Text(err),
                             backgroundColor: Colors.red,
                           ));
                         } else {
                           await _loadPortfolio(); // refresh cash + held
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          if (!mounted) return;
+                          messenger.showSnackBar(SnackBar(
                             content: Text(
                               '${isBuy ? 'Bought' : 'Sold'} ${fmtQty(shares)}${unitLong(shares)}',
                             ),
