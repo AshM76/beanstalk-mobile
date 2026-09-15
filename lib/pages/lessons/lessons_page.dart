@@ -257,7 +257,7 @@ class _LessonCard extends StatelessWidget {
             width: 1.5,
           ) : null,
           boxShadow: [BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2))],
         ),
@@ -273,7 +273,7 @@ class _LessonCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: done
                           ? (passed ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0))
-                          : color.withOpacity(0.1),
+                          : color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(child: Text(lesson.emoji,
@@ -309,7 +309,7 @@ class _LessonCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                            color: color.withOpacity(0.1),
+                            color: color.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6)),
                         child: Text(lesson.category, style: TextStyle(
                             fontSize: 10, color: color, fontWeight: FontWeight.bold)),
@@ -410,20 +410,24 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
 
   List<Map<String, String>> get _slides {
     final c = _content;
-    if (c == null) return [
-      {'title': 'Coming Soon', 'body': 'Full lesson content coming soon!'}
-    ];
+    if (c == null) {
+      return [
+        {'title': 'Coming Soon', 'body': 'Full lesson content coming soon!'}
+      ];
+    }
     return c.slides.map((s) => {'title': s.title, 'body': s.body}).toList();
   }
 
   List<Map<String, dynamic>> get _quiz {
     final c = _content;
-    if (c == null) return [
-      {'question': 'What is investing?',
-       'options': ['Spending money', 'Growing wealth over time', 'Saving only', 'None'],
-       'correct': 1,
-       'explanation': 'Investing is putting money to work to grow wealth over time.'}
-    ];
+    if (c == null) {
+      return [
+        {'question': 'What is investing?',
+         'options': ['Spending money', 'Growing wealth over time', 'Saving only', 'None'],
+         'correct': 1,
+         'explanation': 'Investing is putting money to work to grow wealth over time.'}
+      ];
+    }
     return c.quiz.map((q) => {
       'question': q.question,
       'options': q.options,
@@ -842,7 +846,7 @@ class _LessonDetailPageState extends State<LessonDetailPage> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(

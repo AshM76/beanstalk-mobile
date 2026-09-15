@@ -35,32 +35,32 @@ class LessonService {
   }) async {
     final p = await SharedPreferences.getInstance();
     // Only add XP if first time passing
-    final alreadyPassed = p.getBool('${_prefix}${lessonId}_passed') ?? false;
+    final alreadyPassed = p.getBool('$_prefix${lessonId}_passed') ?? false;
     if (!alreadyPassed && xpEarned > 0) {
       final current = p.getInt(_xpKey) ?? 0;
       await p.setInt(_xpKey, current + xpEarned);
-      await p.setBool('${_prefix}${lessonId}_passed', true);
+      await p.setBool('$_prefix${lessonId}_passed', true);
     }
-    await p.setInt('${_prefix}${lessonId}_score', score);
-    await p.setInt('${_prefix}${lessonId}_total', totalQuestions);
-    await p.setInt('${_prefix}${lessonId}_xp', xpEarned);
-    await p.setBool('${_prefix}${lessonId}_done', true);
-    await p.setString('${_prefix}${lessonId}_date', DateTime.now().toIso8601String());
+    await p.setInt('$_prefix${lessonId}_score', score);
+    await p.setInt('$_prefix${lessonId}_total', totalQuestions);
+    await p.setInt('$_prefix${lessonId}_xp', xpEarned);
+    await p.setBool('$_prefix${lessonId}_done', true);
+    await p.setString('$_prefix${lessonId}_date', DateTime.now().toIso8601String());
   }
 
   static Future<bool> isCompleted(String lessonId) async {
     final p = await SharedPreferences.getInstance();
-    return p.getBool('${_prefix}${lessonId}_done') ?? false;
+    return p.getBool('$_prefix${lessonId}_done') ?? false;
   }
 
   static Future<LessonProgress?> getProgress(String lessonId) async {
     final p = await SharedPreferences.getInstance();
-    final done = p.getBool('${_prefix}${lessonId}_done') ?? false;
+    final done = p.getBool('$_prefix${lessonId}_done') ?? false;
     if (!done) return null;
-    final score = p.getInt('${_prefix}${lessonId}_score') ?? 0;
-    final total = p.getInt('${_prefix}${lessonId}_total') ?? 3;
-    final xp = p.getInt('${_prefix}${lessonId}_xp') ?? 0;
-    final dateStr = p.getString('${_prefix}${lessonId}_date') ??
+    final score = p.getInt('$_prefix${lessonId}_score') ?? 0;
+    final total = p.getInt('$_prefix${lessonId}_total') ?? 3;
+    final xp = p.getInt('$_prefix${lessonId}_xp') ?? 0;
+    final dateStr = p.getString('$_prefix${lessonId}_date') ??
         DateTime.now().toIso8601String();
     return LessonProgress(
       lessonId: lessonId,
@@ -82,13 +82,13 @@ class LessonService {
 
     for (var i = 1; i <= 26; i++) {
       final id = 'l$i';
-      final done = p.getBool('${_prefix}${id}_done') ?? false;
+      final done = p.getBool('$_prefix${id}_done') ?? false;
       if (done) {
         count++;
-        final score = p.getInt('${_prefix}${id}_score') ?? 0;
-        final total = p.getInt('${_prefix}${id}_total') ?? 3;
-        final xp = p.getInt('${_prefix}${id}_xp') ?? 0;
-        final dateStr = p.getString('${_prefix}${id}_date') ??
+        final score = p.getInt('$_prefix${id}_score') ?? 0;
+        final total = p.getInt('$_prefix${id}_total') ?? 3;
+        final xp = p.getInt('$_prefix${id}_xp') ?? 0;
+        final dateStr = p.getString('$_prefix${id}_date') ??
             DateTime.now().toIso8601String();
         result[id] = LessonProgress(
           lessonId: id,
@@ -110,12 +110,12 @@ class LessonService {
     final result = <String, LessonProgress>{};
     for (var i = 1; i <= 26; i++) {
       final id = 'l$i';
-      final done = p.getBool('${_prefix}${id}_done') ?? false;
+      final done = p.getBool('$_prefix${id}_done') ?? false;
       if (done) {
-        final score = p.getInt('${_prefix}${id}_score') ?? 0;
-        final total = p.getInt('${_prefix}${id}_total') ?? 3;
-        final xp = p.getInt('${_prefix}${id}_xp') ?? 0;
-        final dateStr = p.getString('${_prefix}${id}_date') ??
+        final score = p.getInt('$_prefix${id}_score') ?? 0;
+        final total = p.getInt('$_prefix${id}_total') ?? 3;
+        final xp = p.getInt('$_prefix${id}_xp') ?? 0;
+        final dateStr = p.getString('$_prefix${id}_date') ??
             DateTime.now().toIso8601String();
         result[id] = LessonProgress(
           lessonId: id,
@@ -147,6 +147,8 @@ class LessonService {
   static Future<void> clearAll() async {
     final p = await SharedPreferences.getInstance();
     final keys = p.getKeys().where((k) => k.startsWith(_prefix) || k == _xpKey).toList();
-    for (final k in keys) await p.remove(k);
+    for (final k in keys) {
+      await p.remove(k);
+    }
   }
 }

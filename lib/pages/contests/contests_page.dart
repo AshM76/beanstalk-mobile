@@ -507,7 +507,11 @@ class _ContestsPageState extends State<ContestsPage>
     await p.setBool(_notifyKey(c.id), notifying);
     if (!mounted) return;
     setState(() {
-      if (notifying) _notified.add(c.id); else _notified.remove(c.id);
+      if (notifying) {
+        _notified.add(c.id);
+      } else {
+        _notified.remove(c.id);
+      }
     });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(notifying
