@@ -88,14 +88,16 @@ class _NotificationsAdminPageState extends State<NotificationsAdminPage> {
       final w = frame.image.width; final h = frame.image.height;
       frame.image.dispose(); codec.dispose();
       if (w != 1200 || h != 628) {
-        warnings.add('${w}×${h} px — recommended 1200×628 (2:1)');
+        warnings.add('$w×$h px — recommended 1200×628 (2:1)');
       }
     } catch (_) {}
 
-    if (mounted) setState(() {
-      _imageBytes   = bytes;
-      _imageWarning = warnings.isEmpty ? null : warnings.join('  ·  ');
-    });
+    if (mounted) {
+      setState(() {
+        _imageBytes   = bytes;
+        _imageWarning = warnings.isEmpty ? null : warnings.join('  ·  ');
+      });
+    }
   }
 
   Future<void> _send() async {
@@ -239,7 +241,7 @@ class _NotificationsAdminPageState extends State<NotificationsAdminPage> {
             if (_segment == 'Contest Participants') ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _contestId,
+                initialValue: _contestId,
                 hint: const Text('Select a contest…', style: TextStyle(fontSize: 13)),
                 decoration: InputDecoration(
                   labelText: 'Contest',

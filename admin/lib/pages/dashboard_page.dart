@@ -29,7 +29,7 @@ class DashboardPage extends StatelessWidget {
               children: [
                 MetricCard(
                   title: 'Total Users',
-                  value: '${MockStore.totalUsers.toLocale()}',
+                  value: MockStore.totalUsers.toLocale(),
                   icon: Icons.people_rounded,
                   color: _kPrimary,
                   delta: '+41 this week',
@@ -53,7 +53,7 @@ class DashboardPage extends StatelessWidget {
                 ),
                 MetricCard(
                   title: 'Total Trades',
-                  value: '${MockStore.totalTrades.toLocale()}',
+                  value: MockStore.totalTrades.toLocale(),
                   icon: Icons.bar_chart_rounded,
                   color: const Color(0xFFE65100),
                   delta: '+234 today',
@@ -91,16 +91,16 @@ class DashboardPage extends StatelessWidget {
           // ── Recent activity ──────────────────────────────────────────────
           const SectionHeader(title: 'Recent Activity'),
           const SizedBox(height: 12),
-          Card(
+          const Card(
             child: Column(
               children: [
                 _ActivityRow(icon: Icons.person_add_rounded, color: _kPrimary,
                     text: '12 new users signed up',          time: '2 min ago'),
-                _ActivityRow(icon: Icons.school_rounded,      color: const Color(0xFF6A1B9A),
+                _ActivityRow(icon: Icons.school_rounded,      color: Color(0xFF6A1B9A),
                     text: 'Options Basics lesson: 8 completions', time: '14 min ago'),
-                _ActivityRow(icon: Icons.emoji_events_rounded, color: const Color(0xFF1565C0),
+                _ActivityRow(icon: Icons.emoji_events_rounded, color: Color(0xFF1565C0),
                     text: 'Tech Sector Showdown: 5 new joins', time: '31 min ago'),
-                _ActivityRow(icon: Icons.notifications_rounded, color: const Color(0xFFE65100),
+                _ActivityRow(icon: Icons.notifications_rounded, color: Color(0xFFE65100),
                     text: 'Push notification sent to 1,893 users', time: '12 hr ago'),
                 _ActivityRow(icon: Icons.bar_chart_rounded,   color: Colors.teal,
                     text: '234 virtual trades executed today', time: 'Today', last: true),

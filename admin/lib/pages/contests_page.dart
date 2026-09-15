@@ -727,11 +727,11 @@ class _ParticipantsTabState extends State<_ParticipantsTab> {
                   ),
                   child: Row(
                     children: [
-                      _TH('Rank', flex: 1),
+                      const _TH('Rank', flex: 1),
                       _TH('Username', flex: 3, onTap: () => setState(() => _sort = 'name')),
                       _TH('Return', flex: 2, onTap: () => setState(() => _sort = 'rank')),
-                      _TH('Portfolio Value', flex: 2),
-                      _TH('Traded?', flex: 1),
+                      const _TH('Portfolio Value', flex: 2),
+                      const _TH('Traded?', flex: 1),
                     ],
                   ),
                 ),
@@ -1043,7 +1043,7 @@ class _MessagingTabState extends State<_MessagingTab> {
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _target,
+                  initialValue: _target,
                   decoration: _dec(hint: ''),
                   items: _targets
                       .map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13))))
@@ -1079,7 +1079,7 @@ class _MessagingTabState extends State<_MessagingTab> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    '${_recipientCount} recipients',
+                    '$_recipientCount recipients',
                     style: const TextStyle(
                         fontSize: 12,
                         color: _kPrimary,
@@ -1541,7 +1541,7 @@ class _ContestFormDialogState extends State<_ContestFormDialog> {
 
                         // Status
                         DropdownButtonFormField<ContestStatus>(
-                          value: _status,
+                          initialValue: _status,
                           decoration: _inputDec('Status'),
                           items: ContestStatus.values
                               .map((s) => DropdownMenuItem(
@@ -1557,7 +1557,7 @@ class _ContestFormDialogState extends State<_ContestFormDialog> {
                         // ── Rules & Access ──
                         _sectionLabel('Rules & Access'),
                         DropdownButtonFormField<String>(
-                          value: _allowedStocks,
+                          initialValue: _allowedStocks,
                           decoration: _inputDec('Allowed Stocks'),
                           itemHeight: null, // allows variable-height items
                           items: _kAllowedStocksOptions.map((s) {
@@ -1605,7 +1605,7 @@ class _ContestFormDialogState extends State<_ContestFormDialog> {
                         ],
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
-                          value: _entryRequirement,
+                          initialValue: _entryRequirement,
                           decoration: _inputDec('Entry Requirement'),
                           items: _kEntryRequirements
                               .map((s) => DropdownMenuItem(
@@ -1918,7 +1918,7 @@ class _ContestFormDialogState extends State<_ContestFormDialog> {
       frame.image.dispose();
       codec.dispose();
       if (w != recWidth || h != recHeight) {
-        warnings.add('${w}×${h} px — recommended $label');
+        warnings.add('$w×$h px — recommended $label');
       }
     } catch (_) {}
     return warnings;
