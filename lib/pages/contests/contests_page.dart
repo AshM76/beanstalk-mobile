@@ -2195,9 +2195,9 @@ class _Podium extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center),
               Text('+${e.returnPercent.toStringAsFixed(1)}%',
-                  style: TextStyle(
+                  style: const TextStyle(
                       fontSize: 11,
-                      color: const Color(0xFF2E7D32),
+                      color: Color(0xFF2E7D32),
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
               Container(
