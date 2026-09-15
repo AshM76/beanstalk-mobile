@@ -361,7 +361,7 @@ class ProfilePageState extends State<ProfilePage> {
                   borderRadius: BorderRadius.circular(14),
                   border: badge.earned
                       ? Border.all(
-                          color: _kPrimary.withOpacity(0.4), width: 1.5)
+                          color: _kPrimary.withValues(alpha: 0.4), width: 1.5)
                       : null,
                 ),
                 child: Center(
