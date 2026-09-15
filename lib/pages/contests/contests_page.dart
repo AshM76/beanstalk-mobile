@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../main.dart' show goToMainTab, kLearnTabIndex;
 import '../../services/notification/notification_service.dart';
 import '../../services/api/api_service.dart';
 import '../../services/contest/contest_service.dart';
+import '../../services/lesson/contest_gate.dart';
 import '../../services/portfolio/portfolio_service.dart';
 import '../../utils/contest_color.dart';
 import '../../widgets/cash_advisor_sheet.dart';
@@ -61,6 +63,10 @@ class Contest {
   final String? sponsorLogoUrl;
   final String? sponsorTagline;
   final int startingCash;
+  // Learning-gate entry requirements (see beanstalk-api entry_requirements).
+  // entryMinXp 0 + empty entryRequiredLessons = open contest (no gate).
+  final int entryMinXp;
+  final List<String> entryRequiredLessons;
 
   const Contest({
     required this.id,
@@ -81,6 +87,8 @@ class Contest {
     this.sponsorLogoUrl,
     this.sponsorTagline,
     this.startingCash = 10000,
+    this.entryMinXp = 0,
+    this.entryRequiredLessons = const [],
   });
 
   String get timeLabel {
@@ -150,6 +158,16 @@ class Contest {
     final id = (m['contest_id'] as String?) ?? '';
     final color = contestColorFor(id);
 
+    // Learning-gate entry requirements. The API returns a nested object
+    // { min_xp, required_lessons }; absent (older API) → open contest.
+    final er = (m['entry_requirements'] as Map?)?.cast<String, dynamic>();
+    final entryMinXp = er == null ? 0 : parseInt(er['min_xp'], 0);
+    final entryRequiredLessons = er == null
+        ? const <String>[]
+        : (((er['required_lessons'] as List?) ?? const [])
+            .whereType<String>()
+            .toList());
+
     return Contest(
       id: id,
       title: (m['name'] as String?) ?? 'Contest',
@@ -177,6 +195,8 @@ class Contest {
       sponsorName: m['sponsor_name'] as String?,
       sponsorLogoUrl: m['sponsor_logo_url'] as String?,
       sponsorTagline: m['sponsor_tagline'] as String?,
+      entryMinXp: entryMinXp,
+      entryRequiredLessons: entryRequiredLessons,
     );
   }
 }
@@ -323,6 +343,10 @@ class _ContestsPageState extends State<ContestsPage>
   final Set<String> _joined   = {};
   final Set<String> _notified = {};
   final Map<String, int> _participants = {};
+  // Learning-gate status per contest, scored against local lesson progress.
+  // Recomputed on every _loadState so returning from the Learn tab reflects
+  // freshly-earned XP / passed lessons.
+  final Map<String, ContestGate> _gates = {};
   bool _loaded = false;
 
   @override
@@ -375,6 +399,18 @@ class _ContestsPageState extends State<ContestsPage>
       parts[c.id] = c.baseParticipants; // current_participants from the API
     }
 
+    // Score each contest's learning gate against a single snapshot of local
+    // lesson progress (one SharedPreferences read for the whole list).
+    final snapshot = await ContestGate.loadSnapshot();
+    final gates = <String, ContestGate>{
+      for (final c in contests)
+        c.id: ContestGate.fromSnapshot(
+          requiredXp: c.entryMinXp,
+          requiredLessonIds: c.entryRequiredLessons,
+          snapshot: snapshot,
+        ),
+    };
+
     if (!mounted) return;
     setState(() {
       _contests = contests;
@@ -387,6 +423,9 @@ class _ContestsPageState extends State<ContestsPage>
       _participants
         ..clear()
         ..addAll(parts);
+      _gates
+        ..clear()
+        ..addAll(gates);
       _loaded = true;
       _loadError = false;
       _loadErrorMessage = null;
@@ -398,6 +437,15 @@ class _ContestsPageState extends State<ContestsPage>
     // portfolio side-effect, so this is a one-way operation. If already
     // joined, no-op.
     if (_joined.contains(c.id)) return;
+
+    // Learning gate: don't attempt to join a contest whose requirements the
+    // user hasn't met. The UI locks the Join button, but guard here too so no
+    // path (card or detail) can slip a join through — send them to Learn.
+    final gate = _gates[c.id];
+    if (gate != null && gate.locked) {
+      _showGateBlockedSheet(c, gate);
+      return;
+    }
 
     // Age group is required by POST /api/contests/:id/join. Onboarding stores
     // the display label (e.g. 'High School', 'Young Professional') under
@@ -479,11 +527,39 @@ class _ContestsPageState extends State<ContestsPage>
           joined:       _joined.contains(c.id),
           notified:     _notified.contains(c.id),
           participants: _participants[c.id] ?? c.baseParticipants,
+          gate:         _gates[c.id],
           onJoinToggle: () => _join(c),
           onNotifyToggle: () => _toggleNotify(c),
+          onGoToLearn:  _goToLearn,
         ),
       ),
     ).then((_) => _loadState()); // re-sync on return
+  }
+
+  /// Send the user to the Learn tab (index 3). Pops any pushed routes first
+  /// (e.g. the contest detail page) so the bottom-nav tab is visible.
+  void _goToLearn() {
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    goToMainTab?.call(kLearnTabIndex);
+  }
+
+  /// Bottom sheet explaining why a contest is locked and offering a jump to
+  /// the Learn tab. Shown if a join is attempted on a gated contest.
+  void _showGateBlockedSheet(Contest c, ContestGate gate) {
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => _GateSheet(
+        contest: c,
+        gate: gate,
+        onGoToLearn: () {
+          Navigator.of(sheetCtx).pop();
+          _goToLearn();
+        },
+      ),
+    );
   }
 
   List<Contest> _byStatus(ContestStatus s) =>
@@ -563,6 +639,7 @@ class _ContestsPageState extends State<ContestsPage>
             joined:       _joined,
             notified:     _notified,
             participants: _participants,
+            gates:        _gates,
             onJoin:       _join,
             onNotify:     null,
             onTap:        _openDetail,
@@ -572,6 +649,7 @@ class _ContestsPageState extends State<ContestsPage>
             joined:       _joined,
             notified:     _notified,
             participants: _participants,
+            gates:        _gates,
             onJoin:       null,
             onNotify:     _toggleNotify,
             onTap:        _openDetail,
@@ -581,6 +659,7 @@ class _ContestsPageState extends State<ContestsPage>
             joined:       _joined,
             notified:     _notified,
             participants: _participants,
+            gates:        _gates,
             onJoin:       null,
             onNotify:     null,
             onTap:        _openDetail,
@@ -598,6 +677,7 @@ class _ContestList extends StatelessWidget {
   final Set<String> joined;
   final Set<String> notified;
   final Map<String, int> participants;
+  final Map<String, ContestGate> gates;
   final Future<void> Function(Contest)? onJoin;
   final Future<void> Function(Contest)? onNotify;
   final void Function(Contest) onTap;
@@ -607,6 +687,7 @@ class _ContestList extends StatelessWidget {
     required this.joined,
     required this.notified,
     required this.participants,
+    required this.gates,
     required this.onJoin,
     required this.onNotify,
     required this.onTap,
@@ -636,6 +717,7 @@ class _ContestList extends StatelessWidget {
           isJoined:     joined.contains(c.id),
           isNotified:   notified.contains(c.id),
           participants: participants[c.id] ?? c.baseParticipants,
+          gate:         gates[c.id],
           onJoin:       onJoin != null ? () => onJoin!(c) : null,
           onNotify:     onNotify != null ? () => onNotify!(c) : null,
           onTap:        () => onTap(c),
@@ -652,6 +734,7 @@ class _ContestCard extends StatelessWidget {
   final bool isJoined;
   final bool isNotified;
   final int participants;
+  final ContestGate? gate;
   final VoidCallback? onJoin;
   final VoidCallback? onNotify;
   final VoidCallback onTap;
@@ -661,6 +744,7 @@ class _ContestCard extends StatelessWidget {
     required this.isJoined,
     required this.isNotified,
     required this.participants,
+    required this.gate,
     required this.onJoin,
     required this.onNotify,
     required this.onTap,
@@ -914,6 +998,33 @@ class _ContestCard extends StatelessWidget {
           ),
         );
       }
+      // Learning gate not met → a locked action that opens the detail page,
+      // where the full requirement breakdown and "Go to Learn" live.
+      final g = gate;
+      if (g != null && g.locked) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onTap,
+              icon: const Icon(Icons.lock_outline, size: 16),
+              label: const Text('Unlock by learning'),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: _color),
+                foregroundColor: _color,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              g.shortSummary,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11.5, color: Colors.black54),
+            ),
+          ],
+        );
+      }
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton(
@@ -989,8 +1100,10 @@ class ContestDetailPage extends StatefulWidget {
   final bool joined;
   final bool notified;
   final int participants;
+  final ContestGate? gate;
   final Future<void> Function() onJoinToggle;
   final Future<void> Function() onNotifyToggle;
+  final VoidCallback onGoToLearn;
 
   const ContestDetailPage({
     super.key,
@@ -998,8 +1111,10 @@ class ContestDetailPage extends StatefulWidget {
     required this.joined,
     required this.notified,
     required this.participants,
+    required this.gate,
     required this.onJoinToggle,
     required this.onNotifyToggle,
+    required this.onGoToLearn,
   });
 
   @override
@@ -1012,6 +1127,10 @@ class _ContestDetailPageState extends State<ContestDetailPage>
   late bool _joined;
   late bool _notified;
   late int  _participants;
+  // Learning-gate status. Seeded from the list's precomputed value so the
+  // bottom bar renders correctly on first frame, then refreshed against live
+  // local progress in case a lesson was passed since the list loaded.
+  ContestGate? _gate;
 
   @override
   void initState() {
@@ -1023,7 +1142,22 @@ class _ContestDetailPageState extends State<ContestDetailPage>
     _joined       = widget.joined;
     _notified     = widget.notified;
     _participants = widget.participants;
+    _gate         = widget.gate;
     _checkServerMembership();
+    _refreshGate();
+  }
+
+  // Re-score the learning gate against the latest local progress.
+  Future<void> _refreshGate() async {
+    if (widget.contest.entryMinXp <= 0 && widget.contest.entryRequiredLessons.isEmpty) {
+      return; // open contest — nothing to score
+    }
+    final gate = await ContestGate.evaluate(
+      requiredXp: widget.contest.entryMinXp,
+      requiredLessonIds: widget.contest.entryRequiredLessons,
+    );
+    if (!mounted) return;
+    setState(() => _gate = gate);
   }
 
   // Membership is authoritative on the server: a user seeded into a contest, or
@@ -1170,7 +1304,13 @@ class _ContestDetailPageState extends State<ContestDetailPage>
             child: TabBarView(
               controller: _tab,
               children: [
-                _DetailsTab(contest: c, participants: _participants, color: _color),
+                _DetailsTab(
+                  contest: c,
+                  participants: _participants,
+                  color: _color,
+                  gate: _joined ? null : _gate,
+                  onGoToLearn: widget.onGoToLearn,
+                ),
                 ContestPortfolioTab(
                   contestId: c.id,
                   contestName: c.title,
@@ -1257,6 +1397,47 @@ class _ContestDetailPageState extends State<ContestDetailPage>
   }
 
   Widget _joinButton() {
+    // Learning gate not met → lock joining and offer a jump to Learn, with a
+    // one-line summary of what's still needed.
+    final gate = _gate;
+    if (!_joined && gate != null && gate.locked) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_outline, size: 15, color: Colors.black54),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  gate.shortSummary,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12.5, color: Colors.black54),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: widget.onGoToLearn,
+              icon: const Icon(Icons.school, size: 18),
+              label: const Text('Go to Learn to unlock',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _color,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return SizedBox(
       width: double.infinity,
       height: 50,
@@ -1325,7 +1506,16 @@ class _DetailsTab extends StatelessWidget {
   final Contest contest;
   final int participants;
   final Color color;
-  const _DetailsTab({required this.contest, required this.participants, required this.color});
+  // Non-null and locked → show the "unlock by learning" requirements card.
+  final ContestGate? gate;
+  final VoidCallback onGoToLearn;
+  const _DetailsTab({
+    required this.contest,
+    required this.participants,
+    required this.color,
+    required this.gate,
+    required this.onGoToLearn,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1354,6 +1544,13 @@ class _DetailsTab extends StatelessWidget {
             ],
           ),
         ),
+
+        // Learning gate — when this contest requires XP / lessons the user
+        // hasn't earned yet, surface exactly what's needed right at the top,
+        // with a jump to the Learn tab. Not shown on ended contests (nothing
+        // left to join).
+        if (contest.status != ContestStatus.ended && gate != null && gate!.locked)
+          _GateCard(gate: gate!, color: color, onGoToLearn: onGoToLearn),
 
         // Ask Cash — strategy entry point. Sits directly below the prize/
         // countdown block so it's the first action surface a user sees
@@ -1469,6 +1666,205 @@ class _DetailsTab extends StatelessWidget {
         ),
         const SizedBox(height: 24),
       ],
+    );
+  }
+}
+
+// ── Learning gate widgets ─────────────────────────────────────────────────────
+
+/// Shared body: lists the unmet requirements (XP shortfall + lessons still to
+/// pass) with met/pending markers. Used by both the in-page card and the sheet.
+class _GateRequirements extends StatelessWidget {
+  final ContestGate gate;
+  final Color color;
+  const _GateRequirements({required this.gate, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+
+    if (gate.requiredXp > 0) {
+      rows.add(_reqRow(
+        met: gate.xpMet,
+        icon: Icons.star_rounded,
+        title: 'Reach ${gate.requiredXp} XP',
+        subtitle: gate.xpMet
+            ? 'Done — you have ${gate.currentXp} XP'
+            : 'You have ${gate.currentXp} XP · ${gate.xpShortfall} to go',
+      ));
+    }
+
+    if (gate.requiredLessonIds.isNotEmpty) {
+      final total = gate.requiredLessonIds.length;
+      final done = gate.passedRequiredCount;
+      rows.add(_reqRow(
+        met: gate.lessonsMet,
+        icon: Icons.school_rounded,
+        title: 'Pass $total required ${total == 1 ? 'lesson' : 'lessons'}',
+        subtitle: gate.lessonsMet ? 'All done ($done/$total)' : '$done of $total passed',
+      ));
+      for (final title in gate.missingLessonTitles) {
+        rows.add(Padding(
+          padding: const EdgeInsets.only(left: 32, top: 6),
+          child: Row(
+            children: [
+              const Icon(Icons.radio_button_unchecked, size: 14, color: Colors.grey),
+              const SizedBox(width: 8),
+              Expanded(child: Text(title, style: const TextStyle(fontSize: 13, color: Colors.black87))),
+            ],
+          ),
+        ));
+      }
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
+  }
+
+  Widget _reqRow({
+    required bool met,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(met ? Icons.check_circle : icon,
+              size: 20, color: met ? _kGreen : color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// In-page requirements card shown at the top of the Details tab when locked.
+class _GateCard extends StatelessWidget {
+  final ContestGate gate;
+  final Color color;
+  final VoidCallback onGoToLearn;
+  const _GateCard({required this.gate, required this.color, required this.onGoToLearn});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.lock_outline, size: 18, color: color),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Unlock this contest by learning',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('Complete the learning below to join:',
+              style: TextStyle(fontSize: 12.5, color: Colors.black54)),
+          const SizedBox(height: 10),
+          _GateRequirements(gate: gate, color: color),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onGoToLearn,
+              icon: const Icon(Icons.school, size: 18),
+              label: const Text('Go to Learn', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bottom sheet shown if a join is attempted on a locked contest (e.g. from a
+/// card), explaining what's needed and offering a jump to Learn.
+class _GateSheet extends StatelessWidget {
+  final Contest contest;
+  final ContestGate gate;
+  final VoidCallback onGoToLearn;
+  const _GateSheet({required this.contest, required this.gate, required this.onGoToLearn});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = contest.color;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.lock_outline, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Learn to unlock “${contest.title}”',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _GateRequirements(gate: gate, color: color),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: onGoToLearn,
+                icon: const Icon(Icons.school, size: 18),
+                label: const Text('Go to Learn', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
