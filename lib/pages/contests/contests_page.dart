@@ -240,6 +240,10 @@ class LeaderboardEntry {
     final userId = (j['user_id'] as String?) ?? '';
     final rawName = (j['username'] as String?) ?? '';
     final isGhost = j['is_ghost'] == true;
+    // A ghost with no benchmark symbol is the savings baseline (Piggy) → 🐷;
+    // index ghosts (Sammy P. etc.) get a chart 📈.
+    final hasBenchmarkSymbol =
+        (j['benchmark_symbol'] as String?)?.isNotEmpty == true;
 
     double toD(Object? v) =>
         v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
@@ -249,7 +253,9 @@ class LeaderboardEntry {
       rank: toI(j['rank']),
       // Ghost names ("Sammy P.") are real labels — show them as-is.
       username: isGhost ? rawName : _displayName(rawName, userId),
-      avatarEmoji: isGhost ? '📈' : _avatarEmojiFor(userId.isNotEmpty ? userId : rawName),
+      avatarEmoji: isGhost
+          ? (hasBenchmarkSymbol ? '📈' : '🐷')
+          : _avatarEmojiFor(userId.isNotEmpty ? userId : rawName),
       returnPercent: toD(j['return_percent']),
       portfolioValue: toD(j['portfolio_value']),
       isCurrentUser:
