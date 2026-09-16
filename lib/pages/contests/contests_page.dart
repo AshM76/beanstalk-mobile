@@ -14,6 +14,7 @@ import '../../utils/contest_color.dart';
 import '../../widgets/cash_advisor_sheet.dart';
 import '../../widgets/contest_portfolio_tab.dart';
 import '../stocks/stock_search_page.dart';
+import 'recap_page.dart';
 
 final _contestCurrency = NumberFormat('#,##0', 'en_US');
 
@@ -1567,6 +1568,12 @@ class _DetailsTab extends StatelessWidget {
           ),
         ),
 
+        // Contest Recap — for a concluded contest, Cash tells the story of what
+        // worked and how the field did against the market/savings ghosts. The
+        // headline entry point on an ended contest.
+        if (contest.status == ContestStatus.ended)
+          _RecapEntryCard(contest: contest, color: color),
+
         // Learning gate — when this contest requires XP / lessons the user
         // hasn't earned yet, surface exactly what's needed right at the top,
         // with a jump to the Learn tab. Not shown on ended contests (nothing
@@ -1766,6 +1773,52 @@ class _GateRequirements extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Entry point to the Cash-narrated recap, shown on the Details tab of a
+/// concluded contest. Tapping opens the full [RecapPage].
+class _RecapEntryCard extends StatelessWidget {
+  final Contest contest;
+  final Color color;
+
+  const _RecapEntryCard({required this.contest, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2E1A),
+        border: Border.all(color: const Color(0xFF2E7D32).withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: ListTile(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => RecapPage(
+                contestId: contest.id,
+                contestTitle: contest.title,
+                color: color,
+              ),
+            ),
+          );
+        },
+        leading: const Text('📊', style: TextStyle(fontSize: 22)),
+        title: const Text(
+          'See the Contest Recap',
+          style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        subtitle: const Text(
+          "Cash's story of what worked — and how you did vs. the market",
+          style: TextStyle(color: Color(0xFF4ADE80), fontSize: 12),
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios,
+            color: Color(0xFF2E7D32), size: 14),
       ),
     );
   }
