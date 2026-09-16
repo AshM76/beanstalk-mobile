@@ -486,6 +486,17 @@ class ApiService {
     return ApiResult.ok((r.data as Map).cast<String, dynamic>());
   }
 
+  /// GET /api/contests/:contestId/recap/me — the signed-in user's private
+  /// mini-recap. 404 (→ `ok(null)`) when the group recap isn't published yet or
+  /// the user wasn't a participant; both are the expected "nothing to show"
+  /// case, not an error.
+  Future<ApiResult<Map<String, dynamic>?>> getMyContestRecap(String contestId) async {
+    final r = await _get('/api/contests/$contestId/recap/me');
+    if (r.statusCode == 404) return const ApiResult.ok(null);
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    return ApiResult.ok((r.data as Map).cast<String, dynamic>());
+  }
+
   /// GET /api/contests/:contestId/messages — shared contest chat feed.
   Future<ApiResult<List<Map<String, dynamic>>>> getContestMessages(
     String contestId,

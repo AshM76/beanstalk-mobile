@@ -40,6 +40,11 @@ class _RecapPageState extends State<RecapPage> {
   String? _error;
   ContestRecap? _recap; // null + no error + not loading → not ready yet
 
+  // The signed-in kid's private mini-recap. Loaded after the group recap; the
+  // server generates it lazily so it can take a moment.
+  PersonalRecap? _personal;
+  bool _personalLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +65,19 @@ class _RecapPageState extends State<RecapPage> {
       } else {
         _error = res.error ?? 'Something went wrong';
       }
+    });
+    // Only fetch a personal recap once the group recap is live (the server
+    // gates it on that anyway); skip the round-trip otherwise.
+    if (res.isOk && res.data != null) _loadPersonal();
+  }
+
+  Future<void> _loadPersonal() async {
+    setState(() => _personalLoading = true);
+    final res = await RecapService.fetchPersonal(widget.contestId);
+    if (!mounted) return;
+    setState(() {
+      _personalLoading = false;
+      if (res.isOk) _personal = res.data; // null → nothing to show, leave it out
     });
   }
 
@@ -97,15 +115,27 @@ class _RecapPageState extends State<RecapPage> {
             'soon to see how everyone did!',
       );
     }
-    return _RecapContent(recap: _recap!, color: widget.color);
+    return _RecapContent(
+      recap: _recap!,
+      color: widget.color,
+      personal: _personal,
+      personalLoading: _personalLoading,
+    );
   }
 }
 
 class _RecapContent extends StatelessWidget {
   final ContestRecap recap;
   final Color color;
+  final PersonalRecap? personal;
+  final bool personalLoading;
 
-  const _RecapContent({required this.recap, required this.color});
+  const _RecapContent({
+    required this.recap,
+    required this.color,
+    required this.personal,
+    required this.personalLoading,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -141,6 +171,13 @@ class _RecapContent extends StatelessWidget {
 
         const SizedBox(height: 12),
 
+        // Your recap — the signed-in kid's private mini-recap (if they were in
+        // this contest). Shows a gentle placeholder while the server writes it.
+        if (personalLoading && personal == null)
+          const _PersonalLoadingCard()
+        else if (personal != null)
+          _PersonalCard(personal: personal!),
+
         // Market recap — Cash narrates what the market did.
         if (recap.marketRecap.isNotEmpty)
           CashBubble(message: recap.marketRecap, mood: CashMood.thinking),
@@ -166,6 +203,146 @@ class _RecapContent extends StatelessWidget {
           CashBubble(message: recap.cashSignoff, mood: CashMood.happy),
         ],
       ],
+    );
+  }
+}
+
+/// The signed-in kid's private mini-recap card. Warm green (Cash) styling, set
+/// apart from the group recap so it reads as "just for you".
+class _PersonalCard extends StatelessWidget {
+  final PersonalRecap personal;
+  const _PersonalCard({required this.personal});
+
+  static const Color _accent = Color(0xFF2E7D32); // Cash green
+
+  @override
+  Widget build(BuildContext context) {
+    final ret = personal.returnLabel;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _accent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🌱', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              const Text('Your recap',
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold, color: _accent)),
+              const Spacer(),
+              if (ret != null)
+                Text(ret,
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: (personal.yourReturnPercent ?? 0) >= 0
+                            ? _accent
+                            : const Color(0xFFC62828))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (personal.headline.isNotEmpty)
+            Text(personal.headline,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+          if (personal.body.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(personal.body,
+                style: const TextStyle(fontSize: 13, height: 1.45, color: Colors.black87)),
+          ],
+          if (personal.beatMarket != null || personal.beatSavings != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (personal.beatMarket != null)
+                  _BeatChip(label: 'Market', beat: personal.beatMarket!),
+                if (personal.beatMarket != null && personal.beatSavings != null)
+                  const SizedBox(width: 8),
+                if (personal.beatSavings != null)
+                  _BeatChip(label: 'Savings', beat: personal.beatSavings!),
+              ],
+            ),
+          ],
+          if (personal.lesson.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('💡', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(personal.lesson,
+                      style: const TextStyle(
+                          fontSize: 13, height: 1.4, color: Colors.black54)),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A small "beat / didn't beat" chip for a benchmark on the personal card.
+class _BeatChip extends StatelessWidget {
+  final String label;
+  final bool beat;
+  const _BeatChip({required this.label, required this.beat});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = beat ? const Color(0xFF2E7D32) : const Color(0xFF9E9E9E);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        beat ? '✅ Beat $label' : label,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+}
+
+/// Placeholder while the server writes the kid's personal recap.
+class _PersonalLoadingCard extends StatelessWidget {
+  const _PersonalLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF2E7D32).withValues(alpha: 0.4)),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E7D32)),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text('Cash is writing your personal recap…',
+                style: TextStyle(fontSize: 13, color: Colors.black54)),
+          ),
+        ],
+      ),
     );
   }
 }

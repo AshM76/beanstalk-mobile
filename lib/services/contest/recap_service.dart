@@ -37,6 +37,24 @@ class RecapService {
       return const ApiResult.fail('Recap could not be read');
     }
   }
+
+  /// Fetch the signed-in user's private mini-recap, or null when there isn't
+  /// one (group recap not published yet, or they weren't in the contest).
+  static Future<ApiResult<PersonalRecap?>> fetchPersonal(String contestId) async {
+    final r = await _api.getMyContestRecap(contestId);
+    if (!r.isOk) {
+      debugPrint('[RecapService.fetchPersonal] $contestId → ${r.error}');
+      return ApiResult.fail(r.error, statusCode: r.statusCode);
+    }
+    final record = r.data;
+    if (record == null) return const ApiResult.ok(null);
+    try {
+      return ApiResult.ok(PersonalRecap.fromRecord(record));
+    } catch (e) {
+      debugPrint('[RecapService.fetchPersonal] parse error for $contestId: $e');
+      return const ApiResult.fail('Recap could not be read');
+    }
+  }
 }
 
 /// A published contest recap (the OUTPUT the app renders). Mirrors the backend
@@ -124,5 +142,48 @@ class RecapScoreboard {
     if (v is num) return v.toDouble();
     if (v is String) return double.tryParse(v);
     return null;
+  }
+}
+
+/// A private, per-kid mini-recap. Short and encouraging; the figures
+/// (return, beat flags) are the server's verified numbers.
+class PersonalRecap {
+  final String headline;
+  final String body;
+  final double? yourReturnPercent;
+  final bool? beatMarket; // beat Sammy P. (S&P 500); null when unknown
+  final bool? beatSavings; // beat Piggy (savings); null when unknown
+  final String lesson;
+  final String cashSignoff;
+
+  const PersonalRecap({
+    required this.headline,
+    required this.body,
+    this.yourReturnPercent,
+    this.beatMarket,
+    this.beatSavings,
+    required this.lesson,
+    required this.cashSignoff,
+  });
+
+  factory PersonalRecap.fromRecord(Map<String, dynamic> record) {
+    final body = (record['recap'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return PersonalRecap(
+      headline: (body['headline'] as String?)?.trim() ?? '',
+      body: (body['body'] as String?)?.trim() ?? '',
+      yourReturnPercent: (body['your_return_percent'] as num?)?.toDouble(),
+      beatMarket: body['beat_market'] as bool?,
+      beatSavings: body['beat_savings'] as bool?,
+      lesson: (body['lesson'] as String?)?.trim() ?? '',
+      cashSignoff: (body['cash_signoff'] as String?)?.trim() ?? '',
+    );
+  }
+
+  /// The signed return as "+12.3%" / "-4.0%", or null when unknown.
+  String? get returnLabel {
+    final r = yourReturnPercent;
+    if (r == null) return null;
+    final sign = r >= 0 ? '+' : '';
+    return '$sign${r.toStringAsFixed(1)}%';
   }
 }
