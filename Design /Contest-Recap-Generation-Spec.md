@@ -26,8 +26,19 @@ metering — it's a new prompt + a new endpoint, not new infrastructure.
   **benchmark scoreboard** (who beat Sammy P.? did anyone beat Piggy?), and one
   or two takeaways.
 - **Optional personal mini-recap** per kid: short, private, encouraging.
-- **Generated once** when the contest concludes, **stored on the contest**, and
-  served read-only. Never regenerated per view (cost + determinism).
+- **Generated on an admin's action, reviewed, then published** — not served to
+  kids until an admin approves it (see *Trigger & review* below). Generated
+  once and **stored on the contest**; never regenerated per view.
+
+### Decisions (locked)
+
+- **Trigger:** **admin-reviewed** — an admin generates the recap for a
+  concluded contest, reads it, and publishes it; kids see it only once
+  published. (Not auto-on-conclude — a human eyeballs tone/content first.)
+- **Positive callouts are named:** highlights credit the kid by **display
+  name** for *good* moments only (best trade, biggest gain, winner) — **never**
+  for a loss, and losses are never pinned to a name.
+- **Model:** `claude-sonnet-5` (config knob `RECAP_MODEL`, changeable).
 
 ## Architecture
 
@@ -86,26 +97,30 @@ model narrates, not calculates:
 Notes:
 - **Sectors/strategy** start from the existing `asset_class` tags (migration
   008); richer sector tagging is a later enhancement.
-- **Privacy:** the group recap never calls a kid out for a *loss*. Names appear
-  only for positive callouts, and only if we decide to (default: anonymize).
+- **Privacy:** the group recap **never** calls a kid out for a *loss*. Positive
+  callouts (best trade, biggest gain, winner) **are named** by display name —
+  the INPUT carries the name only on those positive fields; loss/negative fields
+  stay aggregate and anonymous.
 
 ## 2. The generation call
 
-- **Endpoint:** `POST /api/contests/:id/recap/generate` (admin/internal, or
-  auto-fired from `concludeContest`). **Idempotent** — if a recap exists, return
-  it; regenerate only with an explicit `force`.
+- **Trigger & review (admin-reviewed):**
+  - `POST /api/contests/:id/recap/generate` (admin only) generates the recap and
+    stores it as **`draft`** (idempotent — returns the existing one unless
+    `force`). This is where the admin reads it.
+  - `POST /api/contests/:id/recap/publish` (admin only) flips it to
+    **`published`**.
+  - The public `GET /api/contests/:id/recap` returns a recap **only when
+    published** (404 otherwise), so kids never see an unreviewed draft.
 - **Integration:** reuse `ai.js`'s Anthropic call + `aiUsageService` metering.
 - **Structured output:** request the recap as JSON via `output_config.format`
   (a schema, below) so the app renders sections instead of parsing prose.
 - **Prompt caching:** the system prompt (Cash voice + safety) and schema are
   stable → cache them; only the per-contest INPUT varies.
-- **Model:** a **config knob** (`RECAP_MODEL`). The recap is one-shot per
-  concluded contest, not latency-sensitive, and quality matters, so step up from
-  the advisor's Haiku:
-  - **`claude-sonnet-5`** — recommended default (strong narrative, mid cost).
-  - `claude-haiku-4-5` — cheapest; matches the existing advisor if volume spikes.
-  - `claude-opus-5` — premium, if we want the very best copy.
-  Pick per budget; easy to change since it's one call.
+- **Model:** `claude-sonnet-5` — strong narrative at mid cost, right for a
+  one-shot, quality-sensitive recap. Kept behind a `RECAP_MODEL` config knob so
+  it's a one-line change to `claude-haiku-4-5` (cheapest, matches the advisor)
+  or `claude-opus-5` (premium) if budget/volume warrants.
 
 ### Recap OUTPUT schema (what the app renders)
 
@@ -129,10 +144,13 @@ recap whose scoreboard shares don't match the INPUT before storing it.
 
 ## 3. Storage & serving
 
-- Store the recap JSON + `generated_at` + `model` **on the contest** (new field
-  / small table). `concludeContest` fires generation once; failures are
-  non-fatal (a contest can conclude without a recap and get one later).
-- `GET /api/contests/:id/recap` returns the stored recap (404 until generated).
+- Store the recap JSON + `status` (`draft` | `published`) + `generated_at` +
+  `published_at` + `model` **on the contest** (new field / small table).
+  Generation is admin-triggered (not auto on conclude); a contest can sit
+  concluded-without-a-recap indefinitely.
+- `GET /api/contests/:id/recap` returns the recap **only when `published`**
+  (404 otherwise). Admins read the `draft` via the generate response / an admin
+  view before publishing.
 
 ## 4. Mobile rendering
 
@@ -169,12 +187,18 @@ recap whose scoreboard shares don't match the INPUT before storing it.
 5. Later: richer sector tagging, cross-contest history, the active-vs-passive
    scorecard (its own plan-doc line).
 
+## Resolved
+
+- **Trigger:** admin-reviewed — generate → review → publish. ✅
+- **Callouts:** positive callouts named by display name; losses stay
+  aggregate/anonymous. ✅
+- **Model:** `claude-sonnet-5` (behind `RECAP_MODEL`). ✅
+
 ## Open questions
 
-- **Auto vs. admin-triggered generation** — fire on conclude automatically, or
-  let an admin review/regenerate first? (Lean: auto, with an admin `force`.)
-- **Name positive callouts?** Default anonymize; opt-in to name the best trade?
-- **Model + budget** — `claude-sonnet-5` default vs. Haiku for volume; confirm
-  once we see contest cadence.
-- **Personal recap timing** — generated with the group recap for everyone, or
-  lazily per kid on first open? (Lazy is cheaper if few kids return.)
+- **Personal recap timing** — generate the personal mini-recap for everyone
+  alongside the group recap, or lazily per kid on first open? (Lazy is cheaper
+  if few kids return; but with admin review, eager keeps everything reviewable
+  in one pass. Lean: eager, generated + reviewed with the group recap.)
+- **Admin review surface** — reuse the web contest-manager (a "Recap" panel with
+  Generate / Preview / Publish), or a lighter internal view first?
