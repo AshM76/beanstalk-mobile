@@ -75,11 +75,12 @@ class ContestService {
     return DateTime.tryParse(raw)?.toLocal();
   }
 
-  /// Total enrollment for a contest = number of ranked players across all age
-  /// groups. Reads from cache when warm; otherwise null (callers fall back to
-  /// the participant count already on the contest list response).
+  /// Total enrollment for a contest = number of ranked *real* players across all
+  /// age groups. Reads from cache when warm; otherwise null (callers fall back
+  /// to the participant count already on the contest list response). Ghost
+  /// benchmark players are excluded — they're not contestants.
   static int? cachedPlayerCount(String contestId) =>
-      _cache[contestId]?.entries.length;
+      _cache[contestId]?.entries.where((e) => !e.isGhost).length;
 
   static List<LeaderboardEntry> _mergeAndRank(Map<String, dynamic> payload) {
     final boards = payload['leaderboards'];
@@ -94,6 +95,21 @@ class ContestService {
       final rankings = group['rankings'];
       if (rankings is! List) continue;
       for (final raw in rankings) {
+        if (raw is! Map) continue;
+        merged.add(LeaderboardEntry.fromJson(
+          raw.cast<String, dynamic>(),
+          currentUserId: currentUserId,
+        ));
+      }
+    }
+
+    // Fold in ghost benchmark players (e.g. "Sammy P."/S&P 500). They ride the
+    // same list so they rank among the real players by portfolio value —
+    // that's the whole point: "did you beat the market?". `is_ghost` on each
+    // entry lets the UI badge them distinctly. Absent on older backends → none.
+    final benchmarks = payload['benchmarks'];
+    if (benchmarks is List) {
+      for (final raw in benchmarks) {
         if (raw is! Map) continue;
         merged.add(LeaderboardEntry.fromJson(
           raw.cast<String, dynamic>(),
