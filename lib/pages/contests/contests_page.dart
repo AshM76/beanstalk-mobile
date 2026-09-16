@@ -208,6 +208,10 @@ class LeaderboardEntry {
   final double returnPercent;
   final double portfolioValue;
   final bool isCurrentUser;
+  // Ghost benchmark player (e.g. "Sammy P." / S&P 500) — a buy-and-hold
+  // benchmark, not a real contestant. Rendered with a distinct badge.
+  final bool isGhost;
+  final String? benchmarkLabel;
 
   const LeaderboardEntry({
     required this.rank,
@@ -216,6 +220,8 @@ class LeaderboardEntry {
     required this.returnPercent,
     required this.portfolioValue,
     this.isCurrentUser = false,
+    this.isGhost = false,
+    this.benchmarkLabel,
   });
 
   /// Parse a single ranking entry from the backend leaderboard payload
@@ -233,6 +239,7 @@ class LeaderboardEntry {
   }) {
     final userId = (j['user_id'] as String?) ?? '';
     final rawName = (j['username'] as String?) ?? '';
+    final isGhost = j['is_ghost'] == true;
 
     double toD(Object? v) =>
         v is num ? v.toDouble() : double.tryParse('$v') ?? 0.0;
@@ -240,12 +247,15 @@ class LeaderboardEntry {
 
     return LeaderboardEntry(
       rank: toI(j['rank']),
-      username: _displayName(rawName, userId),
-      avatarEmoji: _avatarEmojiFor(userId.isNotEmpty ? userId : rawName),
+      // Ghost names ("Sammy P.") are real labels — show them as-is.
+      username: isGhost ? rawName : _displayName(rawName, userId),
+      avatarEmoji: isGhost ? '📈' : _avatarEmojiFor(userId.isNotEmpty ? userId : rawName),
       returnPercent: toD(j['return_percent']),
       portfolioValue: toD(j['portfolio_value']),
       isCurrentUser:
           currentUserId != null && userId.isNotEmpty && userId == currentUserId,
+      isGhost: isGhost,
+      benchmarkLabel: j['benchmark'] as String?,
     );
   }
 
@@ -256,6 +266,8 @@ class LeaderboardEntry {
         returnPercent: returnPercent,
         portfolioValue: portfolioValue,
         isCurrentUser: isCurrentUser,
+        isGhost: isGhost,
+        benchmarkLabel: benchmarkLabel,
       );
 
   /// A username that looks like a UUID (has hyphens and is 32+ chars) is a raw
@@ -2225,21 +2237,34 @@ class _LeaderRow extends StatelessWidget {
   final Color color;
   const _LeaderRow({required this.entry, required this.color});
 
+  // Accent for ghost benchmark players (e.g. "Sammy P."/S&P 500).
+  static const Color _ghostAccent = Color(0xFF5C6BC0); // indigo
+
   @override
   Widget build(BuildContext context) {
     final isTop3 = entry.rank <= 3;
     final isUser = entry.isCurrentUser;
+    final isGhost = entry.isGhost;
     final medals = ['🥇', '🥈', '🥉'];
+
+    final bgColor = isUser
+        ? color.withValues(alpha: 0.06)
+        : isGhost
+            ? _ghostAccent.withValues(alpha: 0.06)
+            : Colors.transparent;
+    final leftBorder = isUser
+        ? BorderSide(color: color, width: 3)
+        : isGhost
+            ? const BorderSide(color: _ghostAccent, width: 3)
+            : BorderSide.none;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isUser ? color.withValues(alpha: 0.06) : Colors.transparent,
+        color: bgColor,
         border: Border(
           bottom: BorderSide(color: Colors.grey.shade100),
-          left: isUser
-              ? BorderSide(color: color, width: 3)
-              : BorderSide.none,
+          left: leftBorder,
         ),
       ),
       child: Row(
@@ -2261,7 +2286,11 @@ class _LeaderRow extends StatelessWidget {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: isUser ? color.withValues(alpha: 0.15) : const Color(0xFFF0F0F0),
+              color: isUser
+                  ? color.withValues(alpha: 0.15)
+                  : isGhost
+                      ? _ghostAccent.withValues(alpha: 0.12)
+                      : const Color(0xFFF0F0F0),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -2270,12 +2299,42 @@ class _LeaderRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              isUser ? '${entry.username} (You)' : entry.username,
-              style: TextStyle(
-                  fontWeight: isUser ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 14,
-                  color: isUser ? color : Colors.black87),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    isUser ? '${entry.username} (You)' : entry.username,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontWeight: (isUser || isGhost)
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        fontSize: 14,
+                        color: isUser
+                            ? color
+                            : isGhost
+                                ? _ghostAccent
+                                : Colors.black87),
+                  ),
+                ),
+                if (isGhost) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _ghostAccent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      entry.benchmarkLabel ?? 'Benchmark',
+                      style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: _ghostAccent),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Column(
