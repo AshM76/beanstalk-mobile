@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network access for the Beanstalk API. Required for release builds;
+         Flutter auto-adds it to debug/profile manifests only. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="beanstalk"
+        android:label="Beanstalk"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
