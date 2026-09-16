@@ -473,6 +473,19 @@ class ApiService {
     return ApiResult.ok((r.data as Map).cast<String, dynamic>());
   }
 
+  /// GET /api/contests/:contestId/recap — the Cash-narrated contest recap.
+  ///
+  /// The backend serves a recap only once an admin has published it, and 404s
+  /// otherwise. That 404 is the common, expected "not ready yet" case (not an
+  /// error), so it's mapped to `ok(null)`; callers show a friendly waiting
+  /// state. Any other non-2xx is a real failure.
+  Future<ApiResult<Map<String, dynamic>?>> getContestRecap(String contestId) async {
+    final r = await _get('/api/contests/$contestId/recap');
+    if (r.statusCode == 404) return const ApiResult.ok(null);
+    if (!r.isOk) return ApiResult.fail(r.error, statusCode: r.statusCode);
+    return ApiResult.ok((r.data as Map).cast<String, dynamic>());
+  }
+
   /// GET /api/contests/:contestId/messages — shared contest chat feed.
   Future<ApiResult<List<Map<String, dynamic>>>> getContestMessages(
     String contestId,
