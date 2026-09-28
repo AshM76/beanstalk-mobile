@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api/api_service.dart';
+import '../../services/notification/push_service.dart';
 import '../onboarding/onboarding_flow.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -61,6 +62,8 @@ class _SignUpPageState extends State<SignUpPage> {
         SnackBar(content: Text(err), backgroundColor: Colors.red),
       );
     } else {
+      // Register this device for push now that we're authenticated.
+      PushService.instance.start();
       debugPrint('[SignUp] SUCCESS → navigating to OnboardingFlow');
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(

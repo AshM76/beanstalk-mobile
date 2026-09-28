@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api/api_service.dart';
+import '../../services/notification/push_service.dart';
 import '../onboarding/onboarding_flow.dart';
 import 'forgot_password_page.dart';
 import 'signup_page.dart';
@@ -46,6 +47,8 @@ class _LoginPageState extends State<LoginPage> {
         SnackBar(content: Text(err), backgroundColor: Colors.red),
       );
     } else {
+      // Register this device for push now that we're authenticated.
+      PushService.instance.start();
       if (!mounted) return;
       final onboarded = await isOnboardingComplete();
       debugPrint('[Login] onboarded=$onboarded → ${onboarded ? "/home" : "OnboardingFlow"}');

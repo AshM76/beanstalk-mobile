@@ -242,6 +242,19 @@ class ApiService {
     await p.remove(_kUserNameKey);
   }
 
+  // ── Push notifications ────────────────────────────────────────────────────
+
+  /// Register this device's FCM token with the backend so the signed-in user
+  /// can receive push notifications. No-op when unauthenticated (the endpoint
+  /// requires a JWT). Safe to call on every launch and on token refresh.
+  Future<void> registerPushToken(String token, {String? platform}) async {
+    if (token.isEmpty || _jwt == null || _jwt!.isEmpty) return;
+    await _post('/api/notifications/register-token', {
+      'token': token,
+      if (platform != null) 'platform': platform,
+    });
+  }
+
   // ── HTTP core ────────────────────────────────────────────────────────────
 
   Map<String, String> get _headers => {

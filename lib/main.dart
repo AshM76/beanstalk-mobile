@@ -17,6 +17,8 @@ import 'models/holding.dart';
 import 'services/notification/notification_service.dart';
 import 'services/group/group_service.dart';
 import 'services/api/api_service.dart';
+import 'services/notification/push_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'services/market/market_service.dart';
 import 'utils/contest_color.dart';
 import 'data/cash_tips.dart';
@@ -65,6 +67,19 @@ void main() async {
   // production Fly.io host), so no override is needed here — ApiService
   // already reads AppConfig.apiBaseUrl by default.
   await ApiService().init();
+
+  // Push notifications (mobile only; no-op on web). Firebase reads the native
+  // config files (GoogleService-Info.plist / google-services.json). PushService
+  // registers the device token with the backend once a user is authenticated,
+  // and re-registers after login (see login/signup flows).
+  if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+      await PushService.instance.start();
+    } catch (e) {
+      debugPrint('[main] push init skipped: $e');
+    }
+  }
 
   // When any protected call 401s (expired/invalid token), ApiService clears
   // the session and calls this: tell the user, then reset the nav stack to

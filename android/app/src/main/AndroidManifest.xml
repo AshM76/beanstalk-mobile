@@ -2,6 +2,8 @@
     <!-- Network access for the Beanstalk API. Required for release builds;
          Flutter auto-adds it to debug/profile manifests only. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Push notifications (Android 13+ requires runtime opt-in) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Beanstalk"
         android:name="${applicationName}"
