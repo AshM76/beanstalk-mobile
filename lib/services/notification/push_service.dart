@@ -88,31 +88,38 @@ class PushService {
   }
 
   Future<void> _registerToken() async {
+    // TEMP diagnostic: release builds don't surface these logs on-device, so we
+    // report where iOS token acquisition stands via the backend, readable at
+    // GET /api/notifications/debug-tokens. On success the real FCM token is
+    // registered; on failure a "DIAG …" marker is registered instead.
+    var diag = 'DIAG';
     try {
-      // iOS: the FCM token is unavailable until the system has set the APNs
-      // token. Right after launch/login it's often not ready yet, so
-      // getToken() comes back null. Wait for the APNs token first (short
-      // retry); the onTokenRefresh listener is the backup if it lands later.
       if (!kIsWeb && Platform.isIOS) {
         var apns = await FirebaseMessaging.instance.getAPNSToken();
         for (var i = 0; apns == null && i < 12; i++) {
           await Future.delayed(const Duration(seconds: 1));
           apns = await FirebaseMessaging.instance.getAPNSToken();
         }
+        diag = '$diag apns=${apns == null ? "null" : "set"}';
         if (apns == null) {
-          debugPrint('[Push] APNs token unavailable — skipping FCM token fetch');
+          await ApiService().registerPushToken('$diag fcm=skipped', platform: 'diag');
           return;
         }
       }
       final token = await FirebaseMessaging.instance.getToken();
+      diag = '$diag fcm=${token == null ? "null" : "set"}';
       if (token != null && token.isNotEmpty) {
         await ApiService().registerPushToken(token, platform: _platform());
         debugPrint('[Push] registered device token ${token.substring(0, 12)}…');
       } else {
-        debugPrint('[Push] getToken() returned null');
+        await ApiService().registerPushToken(diag, platform: 'diag');
       }
     } catch (e) {
-      debugPrint('[Push] token registration failed: $e');
+      final msg = e.toString();
+      await ApiService().registerPushToken(
+        '$diag err=${msg.substring(0, msg.length < 80 ? msg.length : 80)}',
+        platform: 'diag',
+      );
     }
   }
 
