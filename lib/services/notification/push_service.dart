@@ -89,10 +89,27 @@ class PushService {
 
   Future<void> _registerToken() async {
     try {
+      // iOS: the FCM token is unavailable until the system has set the APNs
+      // token. Right after launch/login it's often not ready yet, so
+      // getToken() comes back null. Wait for the APNs token first (short
+      // retry); the onTokenRefresh listener is the backup if it lands later.
+      if (!kIsWeb && Platform.isIOS) {
+        var apns = await FirebaseMessaging.instance.getAPNSToken();
+        for (var i = 0; apns == null && i < 12; i++) {
+          await Future.delayed(const Duration(seconds: 1));
+          apns = await FirebaseMessaging.instance.getAPNSToken();
+        }
+        if (apns == null) {
+          debugPrint('[Push] APNs token unavailable — skipping FCM token fetch');
+          return;
+        }
+      }
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null && token.isNotEmpty) {
         await ApiService().registerPushToken(token, platform: _platform());
         debugPrint('[Push] registered device token ${token.substring(0, 12)}…');
+      } else {
+        debugPrint('[Push] getToken() returned null');
       }
     } catch (e) {
       debugPrint('[Push] token registration failed: $e');
