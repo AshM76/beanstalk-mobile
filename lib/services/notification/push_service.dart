@@ -7,14 +7,17 @@
 // Mobile only. On web (used for `flutter run -d chrome` dev) this is a no-op —
 // there is no web Firebase config wired up, and dart:io isn't available there.
 
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 
 import '../api/api_service.dart';
+import '../../config/app_config.dart';
 
 /// Background/terminated-state handler. Must be a top-level function.
 @pragma('vm:entry-point')
@@ -32,6 +35,10 @@ class PushService {
       FlutterLocalNotificationsPlugin();
   bool _started = false;
 
+  // TEMP push diagnostic: a run id tags each launch's reports so they can be
+  // read together via GET /api/notifications/debug-report.
+  final String _runId = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'beanstalk_default',
     'Beanstalk',
@@ -39,11 +46,39 @@ class PushService {
     importance: Importance.high,
   );
 
+  // TEMP: phone home a push-init stage over plain HTTP (no auth / no JWT), so we
+  // can see exactly where iOS push fails even when login or Firebase init is the
+  // cause. Readable at GET /api/notifications/debug-report. Best-effort.
+  Future<void> _report(String stage, {String? detail}) async {
+    try {
+      await http
+          .post(
+            Uri.parse('${AppConfig.apiBaseUrl}/api/notifications/debug-report'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'run': _runId,
+              'platform': kIsWeb
+                  ? 'web'
+                  : (Platform.isIOS
+                      ? 'ios'
+                      : (Platform.isAndroid ? 'android' : 'other')),
+              'stage': stage,
+              if (detail != null) 'detail': detail,
+            }),
+          )
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // never throw from a diagnostic
+    }
+  }
+
   /// Initialize FCM. Call once at startup after Firebase.initializeApp() and
   /// ApiService().init(). Idempotent — call it again after login to register
   /// the token now that the user is authenticated.
   Future<void> start() async {
     if (kIsWeb) return; // no web FCM config; keeps chrome dev working
+
+    await _report('start-called', detail: _started ? 'already-started' : 'first');
 
     if (_started) {
       await _registerToken();
@@ -51,48 +86,50 @@ class PushService {
     }
     _started = true;
 
-    // Local notifications: foreground display + the Android channel.
-    const initSettings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(
-        // firebase_messaging.requestPermission() owns the iOS prompt.
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
-      ),
-    );
-    await _local.initialize(initSettings);
-    await _local
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
+    try {
+      // Local notifications: foreground display + the Android channel.
+      const initSettings = InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+        ),
+      );
+      await _local.initialize(initSettings);
+      await _local
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(_channel);
+      await _report('local-notif-ok');
 
-    // Permission prompt (iOS, and Android 13+).
-    await FirebaseMessaging.instance.requestPermission();
+      // Permission prompt (iOS, and Android 13+).
+      final settings = await FirebaseMessaging.instance.requestPermission();
+      await _report('permission',
+          detail: settings.authorizationStatus.toString());
 
-    // iOS: also surface notifications while the app is in the foreground.
-    await FirebaseMessaging.instance
-        .setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+      // iOS: also surface notifications while the app is in the foreground.
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    FirebaseMessaging.onMessage.listen(_showForeground);
-    FirebaseMessaging.instance.onTokenRefresh.listen((t) {
-      ApiService().registerPushToken(t, platform: _platform());
-    });
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onMessage.listen(_showForeground);
+      FirebaseMessaging.instance.onTokenRefresh.listen((t) {
+        ApiService().registerPushToken(t, platform: _platform());
+        _report('token-refresh', detail: 'set');
+      });
 
-    await _registerToken();
+      await _registerToken();
+    } catch (e) {
+      await _report('start-error', detail: e.toString());
+    }
   }
 
   Future<void> _registerToken() async {
-    // TEMP diagnostic: release builds don't surface these logs on-device, so we
-    // report where iOS token acquisition stands via the backend, readable at
-    // GET /api/notifications/debug-tokens. On success the real FCM token is
-    // registered; on failure a "DIAG …" marker is registered instead.
-    var diag = 'DIAG';
     try {
       if (!kIsWeb && Platform.isIOS) {
         var apns = await FirebaseMessaging.instance.getAPNSToken();
@@ -100,26 +137,18 @@ class PushService {
           await Future.delayed(const Duration(seconds: 1));
           apns = await FirebaseMessaging.instance.getAPNSToken();
         }
-        diag = '$diag apns=${apns == null ? "null" : "set"}';
-        if (apns == null) {
-          await ApiService().registerPushToken('$diag fcm=skipped', platform: 'diag');
-          return;
-        }
+        await _report('apns', detail: apns == null ? 'null' : 'set');
+        if (apns == null) return;
       }
       final token = await FirebaseMessaging.instance.getToken();
-      diag = '$diag fcm=${token == null ? "null" : "set"}';
+      await _report('fcm', detail: token == null ? 'null' : 'set');
       if (token != null && token.isNotEmpty) {
         await ApiService().registerPushToken(token, platform: _platform());
-        debugPrint('[Push] registered device token ${token.substring(0, 12)}…');
-      } else {
-        await ApiService().registerPushToken(diag, platform: 'diag');
+        await _report('registered',
+            detail: token.substring(0, token.length < 12 ? token.length : 12));
       }
     } catch (e) {
-      final msg = e.toString();
-      await ApiService().registerPushToken(
-        '$diag err=${msg.substring(0, msg.length < 80 ? msg.length : 80)}',
-        platform: 'diag',
-      );
+      await _report('token-error', detail: e.toString());
     }
   }
 
